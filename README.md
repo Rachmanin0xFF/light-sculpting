@@ -1,2 +1,2 @@
 # light-sculpting
-generating optical surfaces to match irradiance maps
+Loosely based on patent [US10732405B2](https://patents.google.com/patent/US10732405B2/en).
