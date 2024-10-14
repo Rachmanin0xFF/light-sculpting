@@ -7,3 +7,5 @@ My take on the problem:
 3. I could use a differentiable rasterizer, but I'm getting annoyed with setting up things in Python, so why not represent $H$ as a sum of bumps/Gaussians?
 
 I'll write this all in WebGL and use geometry buffers with wavefront-mesh-deformation-caustics to make rendering quick. That's the plan!
+
+![caustic test](caustics_test.png)
