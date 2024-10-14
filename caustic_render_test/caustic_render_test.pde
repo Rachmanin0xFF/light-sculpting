@@ -1,4 +1,4 @@
-final int RES = 512;
+final int RES = 128;
 float[][] h = new float[RES][RES];
 PVector[][] displacements = new PVector[RES-1][RES-1];
 float dx = 0.1;
@@ -26,7 +26,7 @@ float area(float x0, float y0, float x1, float y1, float x2, float y2) {
 void quad_light(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float r, float g, float b) {
   float A = area(x0, y0, x1, y1, x2, y2) + area(x2, y2, x3, y3, x0, y0);
   A = max(A, 0.25);
-  fill(r, g, b, 56.0 / A);
+  fill(r, g, b, 506.0 / A);
   triangle(x0, y0, x1, y1, x2, y2);
   triangle(x2, y2, x3, y3, x0, y0);
 }
