@@ -1,4 +1,4 @@
-final int RES = 128;
+final int RES = 256;
 float[][] h = new float[RES][RES];
 PVector[][] displacements = new PVector[RES-1][RES-1];
 float dx = 0.1;
