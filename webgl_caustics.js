@@ -39,7 +39,7 @@ void main()	{
 
     vec2 dpos = vec2(h1 - h2, h3 - h4);
     
-    gl_Position.xy += dpos*5.1*sin(time);
+    gl_Position.xy += dpos*0.0001;
     
 }
 `;
@@ -52,6 +52,7 @@ in float brightness;
 in vec2 uv;
 void main() {
     float f = brightness*length(dFdx(uv))*length(dFdy(uv))*30000.0;
+    f = min(f, 100000.0);
     outColor = vec4(f, 0, 0, 1);
 }
 `;
@@ -78,17 +79,52 @@ uniform float RES;
 uniform sampler2D map_density;
 uniform sampler2D map_iter;
 void main() {
-    outColor = vec4(1.0, 0.0, 0.0, 1.0);
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
     float s0 = texture(map_iter, uv).x;
     float s1 = texture(map_iter, uv + vec2(0.0, 1.0)/RES).x;
     float s2 = texture(map_iter, uv + vec2(0.0, -1.0)/RES).x;
     float s3 = texture(map_iter, uv + vec2(1.0, 0.0)/RES).x;
     float s4 = texture(map_iter, uv + vec2(-1.0, 0.0)/RES).x;
-    outColor.r = (s1 + s2 + s3 + s4)*0.25 + texture(map_density, uv).x*0.01;
+    outColor.r = (s1 + s2 + s3 + s4)*0.25 + texture(map_density, uv).x;
 }
 `
 
-const OTFragmentShader = `
+const subtractFragmentShader = `#version 300 es
+precision mediump float;
+in vec4 vPosition;
+in vec2 uv;
+out vec4 outColor;
+uniform sampler2D map_A;
+uniform sampler2D map_B;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    outColor.r = texture(map_B, uv).x - texture(map_A, uv).x;
+}
+`
+
+const accumulateFragmentShader = `#version 300 es
+precision mediump float;
+in vec4 vPosition;
+in vec2 uv;
+out vec4 outColor;
+uniform sampler2D map_previous;
+uniform sampler2D map_delta;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    outColor.r = texture(map_previous, uv).x + texture(map_delta, uv).x*0.1;
+}
+`
+
+const copyFragmentShader = `#version 300 es
+precision mediump float;
+in vec4 vPosition;
+in vec2 uv;
+out vec4 outColor;
+uniform sampler2D map;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    outColor.r = texture(map, uv).x;
+}
 `
 
 const darkFragmentShader = `#version 300 es
@@ -339,6 +375,7 @@ class Caustic {
     render(heightmap_tex = this.dataTexture) {
         this.material.uniforms.map.value = heightmap_tex;
         this.material.needsUpdate = true;
+        
         this.lightmap_material = new THREE.MeshBasicMaterial({
             map: this.RT.texture
         });
@@ -356,15 +393,93 @@ class OTSolver {
     constructor(resolution) {
         this.caus = new Caustic(100);
         this.p_solver = new PoissonSolver(100);
-        caus.render();
-        this.heightmap_target = new THREE.WebGLRenderTarget(resolution, resolution, {
+        this.caus.render();
+        this.heightmap = new THREE.WebGLRenderTarget(resolution, resolution, {
             type: THREE.FloatType,
-            format: THREE.RedFormat,
-            samples: samples,
+            format: THREE.RedFormat
         });
+        this.RTA = new THREE.WebGLRenderTarget(resolution, resolution, {
+            type: THREE.FloatType,
+            format: THREE.RedFormat
+        });
+        this.caus.render(this.heightmap.texture);
+        this.materialSubtract = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: subtractFragmentShader,
+            depthTest: false,
+            blending: THREE.NormalBlending,
+            depthWrite: false,
+            uniforms: {
+                map_A: {value: this.caus.RT.texture},
+                map_B: {value: this.heightmap.texture},
+                RES: {value: resolution},
+                time: {value: 0.0 }
+            }
+        });
+        this.materialAccumulate = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: accumulateFragmentShader,
+            depthTest: false,
+            blending: THREE.NormalBlending,
+            depthWrite: false,
+            uniforms: {
+                map_previous: {value: this.RTA.texture},
+                map_delta: {value: this.p_solver.RTA.texture},
+                RES: {value: resolution},
+                time: {value: 0.0 }
+            }
+        });
+        this.materialCopy = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: copyFragmentShader,
+            depthTest: false,
+            blending: THREE.NormalBlending,
+            depthWrite: false,
+            uniforms: {
+                map: {value: this.heightmap.texture},
+            }
+        });
+        this.materialSolution = new THREE.MeshBasicMaterial({
+            map: this.caus.RT.texture,
+            blending: THREE.NoBlending
+        })
+        
+        this.quadSub = get_quad(this.materialSubtract);
+        this.quadCopy = get_quad(this.materialCopy);
+        this.quadAccumulate = get_quad(this.materialAccumulate);
+        this.solution_quad = get_quad(this.materialSolution);
     }
     iterate(target) {
+        // Transport by heightmap
+        this.caus.render(this.heightmap.texture);
 
+        // Subtract out target
+        this.materialSubtract.uniforms.map_B.value = target;
+        this.materialSubtract.needsUpdate = true;
+        renderer.setRenderTarget(this.RTA, this.p_solver.RTcam);
+        renderer.render(this.p_solver.quad_dark, this.p_solver.RTcam);
+        renderer.render(this.quadSub, this.p_solver.RTcam);
+
+        // Solve Poisson on subtracted
+        this.p_solver.solve(this.RTA.texture, 64);
+
+        // Copy heightmap to temp texture
+        renderer.setRenderTarget(this.RTA, this.p_solver.RTcam);
+        renderer.render(this.p_solver.quad_dark, this.p_solver.RTcam);
+        renderer.render(this.quadCopy, this.p_solver.RTcam);
+
+        // Update heightmap
+        renderer.setRenderTarget(this.heightmap, this.p_solver.RTcam);
+        renderer.render(this.p_solver.quad_dark, this.p_solver.RTcam);
+        renderer.render(this.quadAccumulate, this.p_solver.RTcam);
+
+        // Finish up
+        this.solution_quad.material.needsUpdate = true;
+        this.solution_quad.needsUpdate = true;
+        renderer.setRenderTarget(null, this.p_solver.RTcam);
     }
 }
 
@@ -372,13 +487,19 @@ var caus = new Caustic(100);
 
 var p_solver = new PoissonSolver(100);
 
+var ots = new OTSolver(100);
+
+const letter_texture = new THREE.TextureLoader().load('letter.png');
+
+ots.iterate(letter_texture);
+
 caus.render();
 //console.log(caus.RTscene);
 //screen_scene.add(caus.wavefront);
-screen_scene.add(caus.lightmap_quad);
-caus.lightmap_quad.position.x = -0.5;
-caus.lightmap_quad.position.y = 0;
-caus.lightmap_quad.position.z = 0;
+screen_scene.add(ots.solution_quad);
+ots.solution_quad.position.x = -0.5;
+ots.solution_quad.position.y = 0;
+ots.solution_quad.position.z = 0;
 
 screen_scene.add(p_solver.solution_quad);
 p_solver.solution_quad.position.x = 0.5;
@@ -393,7 +514,7 @@ let window_dims = {x: 0, y: 0};
 
 let ii = 0;
 
-const letter_texture = new THREE.TextureLoader().load('letter.png');
+
 
 renderer.setAnimationLoop(() => {
     if(window.innerWidth != window_dims.x || window.innerHeight != window_dims.y) {
@@ -419,5 +540,6 @@ renderer.setAnimationLoop(() => {
     caus.wavefront.material.uniforms.time.value += 0.01;
 
     p_solver.solve(letter_texture);
+    ots.iterate(letter_texture);
     //p_solver.solve(caus.RT.texture);
 });
