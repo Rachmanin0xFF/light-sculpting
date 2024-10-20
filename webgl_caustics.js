@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 
+const mouse = new THREE.Vector2();
+document.addEventListener('mousemove', onDocumentMouseMove, false);
+function onDocumentMouseMove(event) {
+    event.preventDefault();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
 const transportVertexShader = `#version 300 es
 in vec4 position;
 out vec4 vPosition;
@@ -9,11 +17,14 @@ uniform sampler2D map;
 uniform float RES;
 out vec2 uv;
 uniform float time;
+out float brightness;
 void main()	{
     gl_Position = projectionMatrix * modelViewMatrix * position;
     vPosition = gl_Position;
 
     uv = gl_Position.xy*0.5 + 0.5;
+    brightness = 3.0*(0.4 - length(uv - vec2(0.5, 0.5)));
+    brightness = 1.0;
 
     float dp = 0.01;
 
@@ -27,9 +38,8 @@ void main()	{
     float h4 = texture(map, uv + vec2(0, -dp)).x;
 
     vec2 dpos = vec2(h1 - h2, h3 - h4);
-
-    if(uv.x > 0.1 && uv.y > 0.1 && uv.x < 0.9 && uv.y < 0.9)
-    gl_Position.xy += dpos*2.4*sin(time);
+    
+    gl_Position.xy += dpos*5.1*sin(time);
     
 }
 `;
@@ -38,28 +48,204 @@ const transportFragmentShader = `#version 300 es
 precision mediump float;
 in vec4 vPosition;
 out vec4 outColor;
-uniform sampler2D map;
+in float brightness;
 in vec2 uv;
 void main() {
-    float f = length(dFdx(uv))*length(dFdy(uv))*100000.0;
-    if(uv.x < 0.1 || uv.y < 0.1 || uv.x > 0.9 || uv.y > 0.9) f = 0.0;
-    outColor = vec4(f, f, f, 1);
+    float f = brightness*length(dFdx(uv))*length(dFdy(uv))*30000.0;
+    outColor = vec4(f, 0, 0, 1);
 }
 `;
 
+const generalVertexShader = `#version 300 es
+precision mediump float;
+in vec4 position;
+out vec4 vPosition;
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+out vec2 uv;
+void main()	{
+    gl_Position = projectionMatrix * modelViewMatrix * position;
+    vPosition = gl_Position;
+    uv = gl_Position.xy*0.5 + 0.5;
+}
+`
+const poissonFragmentShader = `#version 300 es
+precision mediump float;
+in vec4 vPosition;
+in vec2 uv;
+out vec4 outColor;
+uniform float RES;
+uniform sampler2D map_density;
+uniform sampler2D map_iter;
+void main() {
+    outColor = vec4(1.0, 0.0, 0.0, 1.0);
+    float s0 = texture(map_iter, uv).x;
+    float s1 = texture(map_iter, uv + vec2(0.0, 1.0)/RES).x;
+    float s2 = texture(map_iter, uv + vec2(0.0, -1.0)/RES).x;
+    float s3 = texture(map_iter, uv + vec2(1.0, 0.0)/RES).x;
+    float s4 = texture(map_iter, uv + vec2(-1.0, 0.0)/RES).x;
+    outColor.r = (s1 + s2 + s3 + s4)*0.25 + texture(map_density, uv).x*0.01;
+}
+`
+
+const OTFragmentShader = `
+`
+
+const darkFragmentShader = `#version 300 es
+precision mediump float;
+in vec4 vPosition;
+in vec2 uv;
+out vec4 outColor;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+}
+`
+
 const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.getContext().getExtension('EXT_float_blend'); // necessary to do floating-point textures with additive blending
 renderer.setSize(800, 800, false);
 (document.getElementById('demo') || document.body).appendChild(renderer.domElement);
 
 const screen_scene = new THREE.Scene();
 //const screen_camera = new THREE.OrthographicCamera( 0, 1, 1, 0, -1, 1 );
 const screen_camera = new THREE.PerspectiveCamera( 27, window.innerWidth / window.innerHeight, 1, 3500 );
-screen_camera.position.z = 2;
+screen_camera.position.z = 3;
 screen_scene.add( screen_camera );
 
-class Caustic {
-    constructor(resolution) {
+function get_quad(material) {
+    let quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    quad.position.z = - 1;
+    quad.position.x = 0.5;
+    quad.position.y = 0.5;
+    return quad;
+}
 
+class PoissonSolver {
+    constructor(resolution, samples=8) {
+        this.resolution = resolution;
+        this.RTcam = new THREE.OrthographicCamera( 0, 1, 1, 0, -1, 1 );
+        this.RTA = new THREE.WebGLRenderTarget(resolution, resolution, {
+            type: THREE.FloatType,
+            format: THREE.RedFormat,
+            samples: samples,
+        });
+        this.RTB = new THREE.WebGLRenderTarget(resolution, resolution, {
+            type: THREE.FloatType,
+            format: THREE.RedFormat,
+            samples: samples
+        });
+        this.materialA = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: poissonFragmentShader,
+            blending: THREE.NormalBlending,
+            depthTest: false,
+            depthWrite: false,
+            uniforms: {
+                map_density: {value: null},
+                map_iter: {value: this.RTA.texture},
+                RES: {value: resolution},
+                time: {value: 0.0 }
+            }
+        });
+        this.materialB = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: poissonFragmentShader,
+            depthTest: false,
+            blending: THREE.NormalBlending,
+            depthWrite: false,
+            uniforms: {
+                map_density: {value: null},
+                map_iter: {value: this.RTB.texture},
+                RES: {value: resolution},
+                time: {value: 0.0 }
+            }
+        });
+        this.material_dark = new THREE.RawShaderMaterial({
+            side: THREE.DoubleSide,
+            vertexShader: generalVertexShader,
+            fragmentShader: darkFragmentShader,
+            depthTest: false,
+            blending: THREE.NoBlending,
+            depthWrite: false,
+        });
+        this.material_solution = new THREE.MeshBasicMaterial({
+            map: this.RTB.texture,
+            blending: THREE.NoBlending
+        })
+        this.materialA.uniforms.map_iter.value = this.RTA.texture;
+        this.materialB.uniforms.map_iter.value = this.RTB.texture;
+        this.materialA.needsUpdate = true;
+        this.materialB.needsUpdate = true;
+
+        this.quadA = get_quad(this.materialA);
+        this.quadB = get_quad(this.materialB);
+        this.quad_dark = get_quad(this.material_dark)
+
+        this.solution_quad = get_quad(this.material_solution);
+    }
+
+    refresh() {
+        this.materialA.uniforms.map_iter.value = this.RTA.texture;
+        this.materialB.uniforms.map_iter.value = this.RTB.texture;
+        this.materialA.uniforms.map_iter.value.needsUpdate = true;
+        this.materialB.uniforms.map_iter.value.needsUpdate = true;
+        this.RTA.texture.needsUpdate = true;
+        this.RTB.texture.needsUpdate = true;
+        this.materialA.needsUpdate = true;
+        this.materialB.needsUpdate = true;
+        this.quadA.needsUpdate = true;
+        this.quadB.needsUpdate = true;
+        this.solution_quad.material.needsUpdate = true;
+        this.solution_quad.needsUpdate = true;
+    }
+    // 1. Materials A and B have their map_density set to the input texture
+    // 2. A quad using Material B is drawn to RTA
+    // 3. A quad using Material A is drawn to RTB
+    // 4. Repeat steps 2 and 3 many times
+    // 5. Return materialB?
+    solve(input_texture, iterations=1) {
+        
+        this.materialA.uniforms.map_density.value = input_texture;
+        this.materialB.uniforms.map_density.value = input_texture;
+        this.refresh();
+
+        // clearing isn't working. can't figure out why. drawing a dark quad instead.
+        renderer.setRenderTarget(this.RTA, this.RTcam);
+        renderer.render(this.quad_dark, this.RTcam);
+        renderer.setRenderTarget(this.RTB, this.RTcam);
+        renderer.render(this.quad_dark, this.RTcam);
+        
+        this.refresh();
+
+        for(let i = 0; i < 64; i++) {
+            renderer.setRenderTarget(this.RTA, this.RTcam);
+            renderer.render(this.quad_dark, this.RTcam);
+            renderer.render(this.quadB, this.RTcam);
+            this.refresh();
+            
+            renderer.setRenderTarget(this.RTB, this.RTcam);
+            renderer.render(this.quad_dark, this.RTcam);
+            renderer.render(this.quadA, this.RTcam);
+            this.refresh();
+        }
+        
+        return this.solution_quad;
+    }
+}
+
+class Caustic {
+    /**
+     * Sets up Caustic mesh BufferGeometry object, R16F texture, and render target.
+     * @param {int} resolution The wavefront mesh resolution.
+     * @param {int} pixels_per_cell Each face in the mesh nominally occupies a space of (this many pixels)^2.
+     * @param {int} samples The number of MSAA samples to take when rendering.
+     */
+    constructor(resolution, pixels_per_cell=5, samples=8, make_random_heightmap=true) {
+        this.resolution = resolution;
+        this.pixels_per_cell = pixels_per_cell;
+        this.samples = samples;
         // =========== DISPLACEMENT TEXTURE SETUP =========== //
 
         this.surface_heightmap = new Float32Array(resolution**2);
@@ -67,20 +253,26 @@ class Caustic {
             return x + y*resolution;
         }
 
-        for(let i = 0; i < this.surface_heightmap.length; i++) {
-            this.surface_heightmap[i] = Math.random()*1.0;
+        // by default, set up a random smooth texture 
+        if(make_random_heightmap) {
+            for(let i = 0; i < this.surface_heightmap.length; i++) {
+                this.surface_heightmap[i] = (Math.random()-0.5)*1.0;
+            }
+            for(let x = 0; x < resolution; x++) {
+                this.surface_heightmap[x] = 0;
+                this.surface_heightmap[x + (resolution - 1) * resolution] = 0;
+                this.surface_heightmap[x*resolution] = 0;
+                this.surface_heightmap[x*resolution + resolution - 1] = 0;
+            }
+            for(let i = 0; i < 20; i++) for(let x = 1; x < resolution-1; x++) for(let y = 1; y < resolution-1; y++) {
+                let i0 = this.surface_heightmap[(x-1) + y*resolution];
+                let i1  = this.surface_heightmap[(x+1) + y*resolution];
+                let i2 = this.surface_heightmap[x + (y-1)*resolution];
+                let i3  = this.surface_heightmap[x + (y+1)*resolution];
+                this.surface_heightmap[x + y*resolution] = 0.25*(i0 + i1 + i2 + i3);
+            }
         }
-        for(let i = 0; i < 30; i++)
-        for(let x = 1; x < resolution-1; x++) for(let y = 1; y < resolution-1; y++) {
-            this.surface_heightmap[xytoi(x, y)] = 0.25*(
-                this.surface_heightmap[xytoi(x+1, y)] +
-                this.surface_heightmap[xytoi(x, y+1)] +
-                this.surface_heightmap[xytoi(x-1, y)] +
-                this.surface_heightmap[xytoi(x, y-1)]
-            );
-        }
-
-
+        
         console.log(this.surface_heightmap);
         this.dataTexture = new THREE.DataTexture(
             this.surface_heightmap,
@@ -91,9 +283,7 @@ class Caustic {
         this.dataTexture.needsUpdate = true;
 
         // =========== WAVEFRONT SETUP =========== //
-
-        this.resolution = resolution;
-
+        
         this.buffer_geom = new THREE.BufferGeometry();
         let verts = [];
         let indices = [];
@@ -126,6 +316,7 @@ class Caustic {
                 time: {value: 0.0 }
             }
         });
+        console.log(this.material.uniforms);
         this.material.uniforms.map.value = this.dataTexture;
         this.wavefront = new THREE.Mesh(this.buffer_geom, this.material);
 
@@ -133,49 +324,77 @@ class Caustic {
         // =========== WAVEFRONT RENDER TARGET SETUP =========== //
 
         this.RTcam = new THREE.OrthographicCamera( 0, 1, 1, 0, -1, 1 );
-        this.RT = new THREE.WebGLRenderTarget(resolution*3, resolution*3);
+        this.RT = new THREE.WebGLRenderTarget(resolution*pixels_per_cell, resolution*pixels_per_cell, {
+            type: THREE.FloatType,
+            format: THREE.RedFormat,
+            //magFilter: THREE.NearestFilter,
+            samples: samples
+        });
     }
 
-    render() {
-        //renderer.setPixelRatio(1);
-        //renderer.setSize(this.resolution, this.resolution, false);
-        
-        renderer.setRenderTarget(this.RT, this.RTcam);
-        renderer.clear();
-        renderer.render(this.wavefront, this.RTcam);
-        
+    /**
+     * Renders a caustic to this.lightmap_material.map (the material of the Caustic's lightmap_quad mesh).
+     * @param {THREE.Texture} heightmap_tex The heightmap to deform the caustic by. Defaults to this.dataTexture.
+     */
+    render(heightmap_tex = this.dataTexture) {
+        this.material.uniforms.map.value = heightmap_tex;
+        this.material.needsUpdate = true;
         this.lightmap_material = new THREE.MeshBasicMaterial({
             map: this.RT.texture
         });
         this.plane = new THREE.PlaneGeometry(1, 1);
         this.lightmap_quad = new THREE.Mesh(this.plane, this.lightmap_material);
         this.lightmap_quad.position.z = - 1;
+
+        renderer.setRenderTarget(this.RT, this.RTcam);
+        renderer.clear();
+        renderer.render(this.wavefront, this.RTcam);
     }
 }
 
-let mouse = new THREE.Vector2();
-document.addEventListener('mousemove', onDocumentMouseMove, false);
-function onDocumentMouseMove(event) {
-    event.preventDefault();
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+class OTSolver {
+    constructor(resolution) {
+        this.caus = new Caustic(100);
+        this.p_solver = new PoissonSolver(100);
+        caus.render();
+        this.heightmap_target = new THREE.WebGLRenderTarget(resolution, resolution, {
+            type: THREE.FloatType,
+            format: THREE.RedFormat,
+            samples: samples,
+        });
+    }
+    iterate(target) {
+
+    }
 }
 
-var caus = new Caustic(300);
+var caus = new Caustic(100);
+
+var p_solver = new PoissonSolver(100);
 
 caus.render();
 //console.log(caus.RTscene);
 //screen_scene.add(caus.wavefront);
 screen_scene.add(caus.lightmap_quad);
-caus.lightmap_quad.position.x = 0;
+caus.lightmap_quad.position.x = -0.5;
 caus.lightmap_quad.position.y = 0;
 caus.lightmap_quad.position.z = 0;
+
+screen_scene.add(p_solver.solution_quad);
+p_solver.solution_quad.position.x = 0.5;
+p_solver.solution_quad.position.y = 0;
+p_solver.solution_quad.position.z = 0;
 //-------- ----------
 // RENDER
 //-------- ----------
 renderer.setSize(800, 800, false);
 renderer.render(screen_scene, screen_camera);
 let window_dims = {x: 0, y: 0};
+
+let ii = 0;
+
+const letter_texture = new THREE.TextureLoader().load('letter.png');
+
 renderer.setAnimationLoop(() => {
     if(window.innerWidth != window_dims.x || window.innerHeight != window_dims.y) {
         window_dims = {x: window.innerWidth, y: window.innerHeight};
@@ -189,13 +408,16 @@ renderer.setAnimationLoop(() => {
 
     caus.render();
 
+
     let r = 10.0;
-    screen_camera.position.x = mouse.x*2.0;
-    screen_camera.position.y = mouse.y*2.0;
+    screen_camera.position.x = -mouse.x*1.0;
+    screen_camera.position.y = -mouse.y*1.0;
     screen_camera.lookAt(0, 0, 0);
     renderer.setRenderTarget(null, screen_camera);
     renderer.render(screen_scene, screen_camera);
    
     caus.wavefront.material.uniforms.time.value += 0.01;
-    caus.wavefront.material.needsUpdate = true;
+
+    p_solver.solve(letter_texture);
+    //p_solver.solve(caus.RT.texture);
 });
