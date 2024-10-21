@@ -39,7 +39,7 @@ void main()	{
 
     vec2 dpos = vec2(h1 - h2, h3 - h4);
     
-    gl_Position.xy += dpos*0.0001;
+    gl_Position.xy += dpos*0.001;
     
 }
 `;
@@ -51,7 +51,7 @@ out vec4 outColor;
 in float brightness;
 in vec2 uv;
 void main() {
-    float f = brightness*length(dFdx(uv))*length(dFdy(uv))*30000.0;
+    float f = brightness*length(dFdx(uv))*length(dFdy(uv))*400000.0;
     f = min(f, 100000.0);
     outColor = vec4(f, 0, 0, 1);
 }
@@ -111,7 +111,7 @@ uniform sampler2D map_previous;
 uniform sampler2D map_delta;
 void main() {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
-    outColor.r = texture(map_previous, uv).x + texture(map_delta, uv).x*0.1;
+    outColor.r = texture(map_previous, uv).x + texture(map_delta, uv).x;
 }
 `
 
@@ -121,9 +121,16 @@ in vec4 vPosition;
 in vec2 uv;
 out vec4 outColor;
 uniform sampler2D map;
+uniform float RES;
 void main() {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
-    outColor.r = texture(map, uv).x;
+    //float RES = 800.0;
+    float s0 = texture(map, uv).x;
+    float s1 = texture(map, uv + vec2(0.0, 1.0)/RES).x;
+    float s2 = texture(map, uv + vec2(0.0, -1.0)/RES).x;
+    float s3 = texture(map, uv + vec2(1.0, 0.0)/RES).x;
+    float s4 = texture(map, uv + vec2(-1.0, 0.0)/RES).x;
+    outColor.r = 0.999 * s0 + 0.001* 0.25*(s1 + s2 + s3 + s4);
 }
 `
 
@@ -145,7 +152,6 @@ renderer.setSize(800, 800, false);
 const screen_scene = new THREE.Scene();
 //const screen_camera = new THREE.OrthographicCamera( 0, 1, 1, 0, -1, 1 );
 const screen_camera = new THREE.PerspectiveCamera( 27, window.innerWidth / window.innerHeight, 1, 3500 );
-screen_camera.position.z = 3;
 screen_scene.add( screen_camera );
 
 function get_quad(material) {
@@ -278,7 +284,7 @@ class Caustic {
      * @param {int} pixels_per_cell Each face in the mesh nominally occupies a space of (this many pixels)^2.
      * @param {int} samples The number of MSAA samples to take when rendering.
      */
-    constructor(resolution, pixels_per_cell=5, samples=8, make_random_heightmap=true) {
+    constructor(resolution, pixels_per_cell=100, samples=8, make_random_heightmap=true) {
         this.resolution = resolution;
         this.pixels_per_cell = pixels_per_cell;
         this.samples = samples;
@@ -391,8 +397,8 @@ class Caustic {
 
 class OTSolver {
     constructor(resolution) {
-        this.caus = new Caustic(100);
-        this.p_solver = new PoissonSolver(100);
+        this.caus = new Caustic(resolution);
+        this.p_solver = new PoissonSolver(resolution);
         this.caus.render();
         this.heightmap = new THREE.WebGLRenderTarget(resolution, resolution, {
             type: THREE.FloatType,
@@ -440,6 +446,7 @@ class OTSolver {
             depthWrite: false,
             uniforms: {
                 map: {value: this.heightmap.texture},
+                RES: {value: this.resolution}
             }
         });
         this.materialSolution = new THREE.MeshBasicMaterial({
@@ -483,11 +490,11 @@ class OTSolver {
     }
 }
 
-var caus = new Caustic(100);
+var caus = new Caustic(10);
 
-var p_solver = new PoissonSolver(100);
+var p_solver = new PoissonSolver(10);
 
-var ots = new OTSolver(100);
+var ots = new OTSolver(10);
 
 const letter_texture = new THREE.TextureLoader().load('letter.png');
 
@@ -497,14 +504,14 @@ caus.render();
 //console.log(caus.RTscene);
 //screen_scene.add(caus.wavefront);
 screen_scene.add(ots.solution_quad);
-ots.solution_quad.position.x = -0.5;
+ots.solution_quad.position.x = -0.0;
 ots.solution_quad.position.y = 0;
 ots.solution_quad.position.z = 0;
 
-screen_scene.add(p_solver.solution_quad);
-p_solver.solution_quad.position.x = 0.5;
-p_solver.solution_quad.position.y = 0;
-p_solver.solution_quad.position.z = 0;
+//screen_scene.add(p_solver.solution_quad);
+//p_solver.solution_quad.position.x = 0.5;
+//p_solver.solution_quad.position.y = 0;
+//p_solver.solution_quad.position.z = 0;
 //-------- ----------
 // RENDER
 //-------- ----------
@@ -525,14 +532,15 @@ renderer.setAnimationLoop(() => {
 
         screen_camera.aspect = window.innerWidth / window.innerHeight;
 		screen_camera.updateProjectionMatrix();
+        screen_camera.position.z = 2.3;
     }
 
     caus.render();
 
 
     let r = 10.0;
-    screen_camera.position.x = -mouse.x*1.0;
-    screen_camera.position.y = -mouse.y*1.0;
+    //screen_camera.position.x = -mouse.x*1.0;
+    //screen_camera.position.y = -mouse.y*1.0;
     screen_camera.lookAt(0, 0, 0);
     renderer.setRenderTarget(null, screen_camera);
     renderer.render(screen_scene, screen_camera);
