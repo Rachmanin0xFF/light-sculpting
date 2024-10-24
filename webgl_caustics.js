@@ -26,7 +26,7 @@ void main()	{
     brightness = 3.0*(0.4 - length(uv - vec2(0.5, 0.5)));
     brightness = 1.0;
 
-    float dp = 0.01;
+    float dp = 0.1;
 
 
     float h0 = texture(map, uv).x;
@@ -39,7 +39,7 @@ void main()	{
 
     vec2 dpos = vec2(h1 - h2, h3 - h4);
     
-    gl_Position.xy += dpos*0.001;
+    gl_Position.xy += dpos*0.00001;
     
 }
 `;
@@ -51,9 +51,10 @@ out vec4 outColor;
 in float brightness;
 in vec2 uv;
 void main() {
-    float f = brightness*length(dFdx(uv))*length(dFdy(uv))*400000.0;
+    float f = brightness*length(dFdx(uv))*length(dFdy(uv))*180000.0;
     f = min(f, 100000.0);
     outColor = vec4(f, 0, 0, 1);
+    //outColor.r = texture(map, uv).x;
 }
 `;
 
@@ -126,11 +127,7 @@ void main() {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
     //float RES = 800.0;
     float s0 = texture(map, uv).x;
-    float s1 = texture(map, uv + vec2(0.0, 1.0)/RES).x;
-    float s2 = texture(map, uv + vec2(0.0, -1.0)/RES).x;
-    float s3 = texture(map, uv + vec2(1.0, 0.0)/RES).x;
-    float s4 = texture(map, uv + vec2(-1.0, 0.0)/RES).x;
-    outColor.r = 0.999 * s0 + 0.001* 0.25*(s1 + s2 + s3 + s4);
+    outColor.r = s0;
 }
 `
 
@@ -284,13 +281,13 @@ class Caustic {
      * @param {int} pixels_per_cell Each face in the mesh nominally occupies a space of (this many pixels)^2.
      * @param {int} samples The number of MSAA samples to take when rendering.
      */
-    constructor(resolution, pixels_per_cell=100, samples=8, make_random_heightmap=true) {
+    constructor(resolution, pixels_per_cell=4, samples=8, make_random_heightmap=true) {
         this.resolution = resolution;
         this.pixels_per_cell = pixels_per_cell;
         this.samples = samples;
         // =========== DISPLACEMENT TEXTURE SETUP =========== //
 
-        this.surface_heightmap = new Float32Array(resolution**2);
+        this.surface_heightmap = new Float32Array(2*resolution**2);
         function xytoi(x, y) {
             return x + y*resolution;
         }
@@ -300,19 +297,6 @@ class Caustic {
             for(let i = 0; i < this.surface_heightmap.length; i++) {
                 this.surface_heightmap[i] = (Math.random()-0.5)*1.0;
             }
-            for(let x = 0; x < resolution; x++) {
-                this.surface_heightmap[x] = 0;
-                this.surface_heightmap[x + (resolution - 1) * resolution] = 0;
-                this.surface_heightmap[x*resolution] = 0;
-                this.surface_heightmap[x*resolution + resolution - 1] = 0;
-            }
-            for(let i = 0; i < 20; i++) for(let x = 1; x < resolution-1; x++) for(let y = 1; y < resolution-1; y++) {
-                let i0 = this.surface_heightmap[(x-1) + y*resolution];
-                let i1  = this.surface_heightmap[(x+1) + y*resolution];
-                let i2 = this.surface_heightmap[x + (y-1)*resolution];
-                let i3  = this.surface_heightmap[x + (y+1)*resolution];
-                this.surface_heightmap[x + y*resolution] = 0.25*(i0 + i1 + i2 + i3);
-            }
         }
         
         console.log(this.surface_heightmap);
@@ -320,7 +304,7 @@ class Caustic {
             this.surface_heightmap,
             resolution,
             resolution,
-            THREE.RedFormat,
+            THREE.RGFormat,
             THREE.FloatType);
         this.dataTexture.needsUpdate = true;
 
@@ -494,7 +478,7 @@ var caus = new Caustic(10);
 
 var p_solver = new PoissonSolver(10);
 
-var ots = new OTSolver(10);
+var ots = new OTSolver(200);
 
 const letter_texture = new THREE.TextureLoader().load('letter.png');
 
@@ -502,7 +486,10 @@ ots.iterate(letter_texture);
 
 caus.render();
 //console.log(caus.RTscene);
-//screen_scene.add(caus.wavefront);
+//screen_scene.add(caus.lightmap_quad);
+//caus.wavefront.position.x = 0.0;
+//caus.wavefront.position.y = 0.0;
+//caus.wavefront.position.z = 0.0;
 screen_scene.add(ots.solution_quad);
 ots.solution_quad.position.x = -0.0;
 ots.solution_quad.position.y = 0;
@@ -547,7 +534,7 @@ renderer.setAnimationLoop(() => {
    
     caus.wavefront.material.uniforms.time.value += 0.01;
 
-    p_solver.solve(letter_texture);
+    //p_solver.solve(letter_texture);
     ots.iterate(letter_texture);
     //p_solver.solve(caus.RT.texture);
 });
