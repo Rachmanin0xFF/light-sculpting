@@ -8,4 +8,4 @@ My take on the problem:
 
 I'm rewriting / porting the code for this over to JS/WebGL and dropping it in here, so hopefully I'll have a nice static web app once I'm done with that. Aiming for .STL export (would be cool to CNC some acrylic once it's set up).
 
-![caustic test](caustics_test.png)
+![caustic test](screenshot.png)
