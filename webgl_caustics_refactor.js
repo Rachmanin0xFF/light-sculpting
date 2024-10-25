@@ -257,6 +257,7 @@ uniform sampler2D map_delta;
 uniform sampler2D difference;
 uniform sampler2D uv_tex;
 uniform sampler2D lightmap;
+uniform sampler2D curl;
 uniform float resolution;
 uniform float time;
 float rand(vec2 co){
@@ -266,7 +267,7 @@ void main() {
     vec2 disp_coord = (uv*(resolution + 1.0) + 0.5)/ (resolution + 2.0);
     vec2 adapted_coords = disp_coord + texture(uv_tex, uv).rg*0.5;
     vec2 normal_coords = uv;
-    outColor.rgb = texture(map_previous, uv).rgb + 0.00001*texture(map_delta, adapted_coords).rgb;
+    outColor.rgb = texture(map_previous, uv).rgb + 0.000002*texture(map_delta, adapted_coords).rgb;
     outColor.a = 1.0;
 }
 `
@@ -281,6 +282,22 @@ void main() {
     outColor.b = length(outColor.rg);
 }
 `
+const curlFragmentShader = `#version 300 es
+precision mediump float;
+in vec2 uv;
+out vec4 outColor;
+uniform float resolution;
+uniform sampler2D map;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 1.0);
+    float s1 = texture(map, uv + vec2(1.0, 0.0)/resolution).y;
+    float s2 = texture(map, uv + vec2(-1.0, 0.0)/resolution).y;
+    float s3 = texture(map, uv + vec2(0.0, 1.0)/resolution).x;
+    float s4 = texture(map, uv + vec2(0.0, -1.0)/resolution).x;
+    outColor.r = ((s1 - s2) - (s3 - s4))*resolution;
+    outColor.a = 1.0;
+}`
+
 const ortho_camera = new THREE.OrthographicCamera( 0, 1, 1, 0, -1, 1 );
 function get_quad(material, segments=2) {
     let quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, segments, segments), material);
@@ -373,6 +390,7 @@ class Transporter {
         this.f_tempA = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
         this.f_tempB = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
         this.f_gradient = new FBO(resolution, THREE.LinearFilter, THREE.RGFormat);
+        this.f_curl = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
         this.f_accum = new FBO(resolution, THREE.LinearFilter, THREE.RGFormat);
 
         this.f_viewer = new FBO(resolution, THREE.LinearFilter);
@@ -391,11 +409,12 @@ class Transporter {
         this.wireframe_shader = new Shader(transportVertexShader, whiteFragmentShader, THREE.AdditiveBlending);
         this.wireframe_shader.material.wireframe = true;
         this.display_shader = new Shader(genericVertexShader, displayFragmentShader);
+        this.curl_shader = new Shader(genericVertexShader, curlFragmentShader);
 
         this.t_source = new THREE.TextureLoader().load('source.png');
-        this.t_target = new THREE.TextureLoader().load('meow.png');
+        this.t_target = new THREE.TextureLoader().load('junk/text.png');
     
-        this.poisson_iter = 50;
+        this.poisson_iter = 190;
     }
     render() {
         //filterTo(this.f_displacements, black_shader, {}, {time: mouse.x});
@@ -470,12 +489,19 @@ class Transporter {
             map_delta: this.f_gradient,
             uv_tex: this.f_displacements,
             difference: this.f_difference,
-            lightmap: this.f_lightmap},
+            lightmap: this.f_lightmap,
+            curl: this.f_curl},
             {resolution: this.resolution,
                 time: ii
             }
         );
         ii++;
+
+        filterTo(this.f_curl,
+            this.curl_shader,
+            {map: this.f_displacements},
+            {resolution: this.resolution}
+        );
 
         filterTo(this.f_displacements, generic_shader, {map: this.f_accum});
 
@@ -489,6 +515,8 @@ class Transporter {
         renderToScreenCoords(this.f_viewer2, 0.25, 0.25, 0.5, 0.5);
         renderToScreenCoords(this.f_viewer, 0.75, 0.25, 0.5, 0.5);
         renderToScreenCoords(this.f_viewer3, 0.75, 0.75, 0.5, 0.5);
+
+        renderToScreenCoords(this.f_curl, 0.75, 0.75, 0.5, 0.5);
         //renderToScreen(this.f_viewer2);
         //renderToScreen(this.f_difference);
         //renderToScreen(this.f_viewer);
