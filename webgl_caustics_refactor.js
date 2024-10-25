@@ -42,7 +42,7 @@ precision mediump float;
 in vec2 uv;
 out vec4 outColor;
 void main() {
-    outColor = vec4(0.1, 0.1, 0.1, 1.0);
+    outColor = vec4(1.0, 1.0, 1.0, 0.1);
 }
 `
 const randomFragmentShader = `#version 300 es
@@ -51,8 +51,8 @@ in vec2 uv;
 out vec4 outColor;
 uniform float time;
 float rand(vec2 co){
-    return sin((co.x + co.y)*10.0) + cos((co.x - co.y)*10.0);
-    //return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453)*2.0 - 1.0;
+    //return sin((co.x + co.y)*10.0) + cos((co.x - co.y)*10.0);
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453)*2.0 - 1.0;
 }
 void main() {
     outColor.r = rand(gl_FragCoord.xy*0.01);
@@ -161,8 +161,6 @@ void main() {
     float n1 = texture(A, uv).r;
     float n2 = texture(B, uv).r;
     outColor.r = n1 - n2;
-    //if(abs(outColor.r) < 0.02) outColor.r = 0.0;
-    //if(outColor.r < 0.0) outColor.r *= 0.95;
     float border = 0.01;
     if(uv.x > 1.0 - border || uv.y > 1.0 - border || uv.x < border || uv.y < border) outColor.r = -0.02;
     outColor.a = 1.0;
@@ -175,27 +173,6 @@ out vec4 outColor;
 uniform float resolution;
 uniform sampler2D map_density;
 uniform sampler2D map_iter;
-
-float get_bh(float disp) {
-    float A = texture(map_iter, uv + vec2( 0.0,  2.0)*disp).x;
-    float B = texture(map_iter, uv + vec2(-1.0,  1.0)*disp).x;
-    float C = texture(map_iter, uv + vec2( 0.0,  1.0)*disp).x;
-    float D = texture(map_iter, uv + vec2( 1.0,  1.0)*disp).x;
-    float E = texture(map_iter, uv + vec2(-2.0,  0.0)*disp).x;
-    float F = texture(map_iter, uv + vec2(-1.0,  0.0)*disp).x;
-    
-    //float G = texture(map_iter, uv + vec2( 0.0,  0.0)*disp).x;
-    
-    float H = texture(map_iter, uv + vec2( 1.0,  0.0)*disp).x;
-    float I = texture(map_iter, uv + vec2( 2.0,  0.0)*disp).x;
-    float J = texture(map_iter, uv + vec2(-1.0, -1.0)*disp).x;
-    float K = texture(map_iter, uv + vec2( 0.0, -1.0)*disp).x;
-    float L = texture(map_iter, uv + vec2( 1.0, -1.0)*disp).x;
-    float M = texture(map_iter, uv + vec2( 0.0, -2.0)*disp).x;
-
-    return -(A + 2.0*B - 8.0*C + 2.0*D + E - 8.0*F - 8.0*H + I + 2.0*J - 8.0*K + 2.0*L + M)/20.0;
-    
-}
 
 void main() {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -215,7 +192,7 @@ out vec4 outColor;
 uniform sampler2D map;
 void main() {
     vec3 t = texture(map, uv).rgb;
-    outColor.rgb = -cos(0.4*t)*0.5 + vec3(0.5);
+    outColor.rgb = -cos(400.4*t)*0.5 + vec3(0.5);
     if(t.x < 0.0) outColor.b = 1.0;
     outColor.a = 1.0;
 }`
@@ -231,9 +208,8 @@ void main() {
     float s2 = texture(map, uv + vec2(-1.0, 0.0)/resolution).x;
     float s3 = texture(map, uv + vec2(0.0, 1.0)/resolution).x;
     float s4 = texture(map, uv + vec2(0.0, -1.0)/resolution).x;
-    outColor.r = resolution*(s1 - s2);
-    outColor.g = resolution*(s3 - s4);
-    //if(length(outColor.rg) > 0.0) outColor.rg /= length(outColor.rg)*0.1;
+    outColor.r = (s1 - s2)*resolution;
+    outColor.g = (s3 - s4)*resolution;
     outColor.a = 1.0;
 }`
 const accumulateVertexShader = `#version 300 es
@@ -267,7 +243,7 @@ void main() {
     vec2 disp_coord = (uv*(resolution + 1.0) + 0.5)/ (resolution + 2.0);
     vec2 adapted_coords = disp_coord + texture(uv_tex, uv).rg*0.5;
     vec2 normal_coords = uv;
-    outColor.rgb = texture(map_previous, uv).rgb + 0.000002*texture(map_delta, adapted_coords).rgb;
+    outColor.rgb = texture(map_previous, uv).rgb + 0.003*texture(map_delta, adapted_coords).rgb / resolution;
     outColor.a = 1.0;
 }
 `
@@ -282,7 +258,7 @@ void main() {
     outColor.b = length(outColor.rg);
 }
 `
-const curlFragmentShader = `#version 300 es
+const divergenceFragmentShader = `#version 300 es
 precision mediump float;
 in vec2 uv;
 out vec4 outColor;
@@ -290,11 +266,11 @@ uniform float resolution;
 uniform sampler2D map;
 void main() {
     outColor = vec4(0.0, 0.0, 0.0, 1.0);
-    float s1 = texture(map, uv + vec2(1.0, 0.0)/resolution).y;
-    float s2 = texture(map, uv + vec2(-1.0, 0.0)/resolution).y;
-    float s3 = texture(map, uv + vec2(0.0, 1.0)/resolution).x;
-    float s4 = texture(map, uv + vec2(0.0, -1.0)/resolution).x;
-    outColor.r = ((s1 - s2) - (s3 - s4))*resolution;
+    float s1 = texture(map, uv + vec2(1.0, 0.0)/resolution).x;
+    float s2 = texture(map, uv + vec2(-1.0, 0.0)/resolution).x;
+    float s3 = texture(map, uv + vec2(0.0, 1.0)/resolution).y;
+    float s4 = texture(map, uv + vec2(0.0, -1.0)/resolution).y;
+    outColor.r = ((s1 - s2) + (s3 - s4))/resolution;
     outColor.a = 1.0;
 }`
 
@@ -340,6 +316,7 @@ class Shader {
 const generic_shader = new Shader(genericVertexShader, genericFragmentShader);
 const black_shader = new Shader(genericVertexShader, blackFragmentShader);
 const white_shader = new Shader(genericVertexShader, whiteFragmentShader);
+const sine_shader = new Shader(genericVertexShader, sineFragmentShader);
 const black_quad = get_quad(black_shader.material);
 function filterTo(target, shader, fbo_inputs={}, other_inputs={}, segments=2, clear=true) {
     for (const [k, v] of Object.entries(fbo_inputs)) {
@@ -379,19 +356,119 @@ function renderTexToScreen(tex) {
     quad.geometry.dispose();
 }
 
+class MultigridPoissonSolver {
+    constructor(resolution) {
+        this.gridsA = [];
+        this.gridsB = [];
+        for(let n = resolution; n > 8; n /= 2) {
+            this.gridsA.unshift(new FBO(Math.floor(n), THREE.LinearFilter, THREE.RedFormat));
+            this.gridsB.unshift(new FBO(Math.floor(n), THREE.LinearFilter, THREE.RedFormat));
+        }
+        console.log("Created multigrid solver with " + this.gridsA.length + " scales.");
+        console.log(this.gridsA);
+        this.poisson_shader = new Shader(genericVertexShader, poissonFragmentShader);
+    }
+    traverse_down(input_fbo, sub_iter=1) {
+        for(let i = 0; i < this.gridsA.length; i++) {
+            for(let j = 0; j < sub_iter; j++) {
+                let source = this.gridsB[i];
+                if(j == 0 && i != 0) source = this.gridsB[i-1];
+                filterTo(this.gridsA[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: source},
+                    {resolution: source.resolution}
+                );
+                filterTo(this.gridsB[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: this.gridsA[i]},
+                    {resolution: this.gridsA[i].resolution}
+                );
+            }
+        }
+    }
+    traverse_up(input_fbo, sub_iter=1) {
+        for(let i = this.gridsA.length-1; i >= 0; i--) {
+            for(let j = 0; j < sub_iter; j++) {
+                let source = this.gridsB[i];
+                if(j == 0 && i != this.gridsA.length-1) source = this.gridsB[i+1];
+                filterTo(this.gridsA[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: source},
+                    {resolution: source.resolution}
+                );
+                filterTo(this.gridsB[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: this.gridsA[i]},
+                    {resolution: this.gridsA[i].resolution}
+                );
+            }
+        }
+    }
+    solve(input_fbo, target_fbo, iter=3) {
+        for(let i = 0; i < this.gridsA.length; i++) {
+            filterTo(this.gridsA[i], black_shader);
+            filterTo(this.gridsB[i], black_shader);
+        }
+
+        this.traverse_down(input_fbo, iter);
+        
+        let q = Math.floor(mouse.x*4.0);
+        if(q < 0) q = 0;
+        if(q > this.gridsA.length-1) q = this.gridsA.length-1;
+        filterTo(target_fbo, generic_shader, {map: this.gridsB[this.gridsB.length-1]});
+    }
+    solve_coarse_priority(input_fbo, target_fbo) {
+        for(let i = 0; i < this.gridsA.length; i++) {
+            filterTo(this.gridsA[i], black_shader);
+            filterTo(this.gridsB[i], black_shader);
+        }
+
+        for(let i = 0; i < this.gridsA.length; i++) {
+            let sub_iter = 3;
+            sub_iter += 100.0/((i+2)*(i+1))
+            for(let j = 0; j < sub_iter; j++) {
+                let source = this.gridsB[i];
+                if(j == 0 && i != 0) source = this.gridsB[i-1];
+                filterTo(this.gridsA[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: source},
+                    {resolution: source.resolution}
+                );
+                filterTo(this.gridsB[i],
+                    this.poisson_shader,
+                    {map_density: input_fbo,
+                        map_iter: this.gridsA[i]},
+                    {resolution: this.gridsA[i].resolution}
+                );
+            }
+        }
+        
+        let q = Math.floor(mouse.x*4.0);
+        if(q < 0) q = 0;
+        if(q > this.gridsA.length-1) q = this.gridsA.length-1;
+        filterTo(target_fbo, generic_shader, {map: this.gridsB[this.gridsB.length-1]});
+    }
+}
+
 class Transporter {
-    constructor(resolution, pixel_density=2) {
+    constructor(resolution, pixel_density=3) {
         this.resolution = resolution;
         this.f_displacements = new FBO(resolution+1, THREE.LinearFilter); //
         this.f_transport_uv = new FBO(resolution*pixel_density, THREE.LinearFilter); //
         this.f_densities = new FBO(resolution, THREE.LinearFilter); //
         this.f_lightmap = new FBO(resolution*pixel_density, THREE.LinearFilter);
         this.f_difference = new FBO(resolution, THREE.LinearFilter);
-        this.f_tempA = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
+        this.f_tempA = new FBO(resolution, THREE.LinearFilter, THREE.RGFormat);
         this.f_tempB = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
         this.f_gradient = new FBO(resolution, THREE.LinearFilter, THREE.RGFormat);
-        this.f_curl = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
+        this.f_divergence = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
         this.f_accum = new FBO(resolution, THREE.LinearFilter, THREE.RGFormat);
+        this.f_heightmap = new FBO(resolution, THREE.LinearFilter, THREE.RedFormat);
 
         this.f_viewer = new FBO(resolution, THREE.LinearFilter);
         this.f_viewer2 = new FBO(resolution*pixel_density, THREE.LinearFilter);
@@ -403,18 +480,20 @@ class Transporter {
         this.transport_uv_shader = new Shader(transportVertexShader, transportUVFragmentShader);
         this.subtract_shader = new Shader(genericVertexShader, subtractFragmentShader);
         this.poisson_shader = new Shader(genericVertexShader, poissonFragmentShader);
-        this.sine_shader = new Shader(genericVertexShader, sineFragmentShader);
         this.gradient_shader = new Shader(genericVertexShader, gradientFragmentShader);
         this.accumulate_shader = new Shader(accumulateVertexShader, accumulateFragmentShader);
         this.wireframe_shader = new Shader(transportVertexShader, whiteFragmentShader, THREE.AdditiveBlending);
         this.wireframe_shader.material.wireframe = true;
         this.display_shader = new Shader(genericVertexShader, displayFragmentShader);
-        this.curl_shader = new Shader(genericVertexShader, curlFragmentShader);
+        this.divergence_shader = new Shader(genericVertexShader, divergenceFragmentShader);
 
         this.t_source = new THREE.TextureLoader().load('source.png');
-        this.t_target = new THREE.TextureLoader().load('junk/text.png');
-    
-        this.poisson_iter = 190;
+        this.t_target = new THREE.TextureLoader().load('meow.png');
+
+        this.f_target = new FBO(resolution, THREE.LinearFilter);
+        
+        this.poisson_solver = new MultigridPoissonSolver(this.resolution);
+        this.poisson_iter = 10;
     }
     render() {
         //filterTo(this.f_displacements, black_shader, {}, {time: mouse.x});
@@ -457,27 +536,8 @@ class Transporter {
             {A: this.t_target}
         );
 
-        filterTo(this.f_tempB, white_shader);
-
-        for(let i = 0; i < this.poisson_iter; i++) {
-            filterTo(this.f_tempA,
-                this.poisson_shader,
-                {map_density: this.f_difference,
-                    map_iter: this.f_tempB},
-                {resolution: this.resolution}
-            )
-            filterTo(this.f_tempB,
-                this.poisson_shader,
-                {map_density: this.f_difference,
-                    map_iter: this.f_tempA},
-                {resolution: this.resolution}
-            )
-        }
+        this.poisson_solver.solve(this.f_difference, this.f_tempB);
         
-        filterTo(this.f_tempA,
-            this.sine_shader,
-            {map: this.f_tempB}
-        );
         filterTo(this.f_gradient,
             this.gradient_shader,
             {map: this.f_tempB},
@@ -489,24 +549,34 @@ class Transporter {
             map_delta: this.f_gradient,
             uv_tex: this.f_displacements,
             difference: this.f_difference,
-            lightmap: this.f_lightmap,
-            curl: this.f_curl},
+            lightmap: this.f_lightmap},
             {resolution: this.resolution,
                 time: ii
             }
         );
         ii++;
 
-        filterTo(this.f_curl,
-            this.curl_shader,
+        filterTo(this.f_displacements, generic_shader, {map: this.f_accum});
+
+
+        filterTo(this.f_divergence,
+            this.divergence_shader,
             {map: this.f_displacements},
             {resolution: this.resolution}
         );
+        this.poisson_solver.solve_coarse_priority(this.f_divergence, this.f_heightmap);
+        filterTo(this.f_tempA,
+            this.gradient_shader,
+            {map: this.f_heightmap},
+            {resolution: this.resolution}
+        );
 
-        filterTo(this.f_displacements, generic_shader, {map: this.f_accum});
+        //filterTo(this.f_displacements, generic_shader, {map: this.f_tempA});
+        
 
-        filterTo(this.f_viewer, this.sine_shader, {map: this.f_tempB});
-        filterTo(this.f_viewer3, this.display_shader, {map: this.f_gradient});
+        filterTo(this.f_viewer, sine_shader, {map: this.f_tempA});
+        filterTo(this.f_viewer3, sine_shader, {map: this.f_displacements});
+        
 
         //renderToScreen(this.f_transport_uv);
         //renderToScreen(this.f_displacements);
@@ -516,30 +586,27 @@ class Transporter {
         renderToScreenCoords(this.f_viewer, 0.75, 0.25, 0.5, 0.5);
         renderToScreenCoords(this.f_viewer3, 0.75, 0.75, 0.5, 0.5);
 
-        renderToScreenCoords(this.f_curl, 0.75, 0.75, 0.5, 0.5);
+        //renderToScreenCoords(this.f_curl, 0.75, 0.75, 0.5, 0.5);
         //renderToScreen(this.f_viewer2);
         //renderToScreen(this.f_difference);
         //renderToScreen(this.f_viewer);
         //renderToScreen(this.f_densities);
         //renderTexToScreen(this.t_source);
+
+        //filterTo(this.f_target, generic_shader, {}, {map: this.t_target});
+        //this.poisson_solver.solve(this.f_target, this.f_viewer3);
+        //renderToScreen(this.f_viewer3);
     }
 }
 let ii = 0;
 
 // =============== Application Logic =============== //
 
-const letter_texture = new THREE.TextureLoader().load('letter.png');
-
-let test_tex = new FBO(500);
-let test_tex_2 = new FBO(500);
-
-let tsp = new Transporter(500);
+let tsp = new Transporter(200);
 
 function update_app() {
     tsp.render();
 }
-
-
 
 // =============== Scene Setup & Loop =============== //
 
