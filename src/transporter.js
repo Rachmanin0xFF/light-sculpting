@@ -182,7 +182,7 @@ export class TransportLevel {
         // new_disp = old_disp + stepSize * curl_free_flow
         fullscreenPass(gl, progs.addMult,
             { A: this.tempB.texture, B: this.tempA.texture },
-            { stepSize: stepSize },
+            { stepSize: stepSize, resolution: res },
             this.displacements
         );
     }

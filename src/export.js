@@ -82,6 +82,106 @@ export function downloadHeightmapPNG(data, width, height, filename = 'heightmap.
  * @param {number} height
  * @param {string} filename
  */
+/**
+ * Export heightmap as a watertight OBJ mesh (top surface + walls + bottom).
+ * Vertices in [0,1] x [0,1], height as Z. Normalized so min height = 0.
+ * @param {Float32Array} data - heightmap values (width * height)
+ * @param {number} width
+ * @param {number} height
+ * @param {string} filename
+ */
+export function downloadHeightmapOBJ(data, width, height, filename = 'heightmap.obj') {
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < data.length; i++) {
+        if (data[i] < min) min = data[i];
+        if (data[i] > max) max = data[i];
+    }
+    const range = max - min || 1;
+
+    const lines = ['# Caustic lens heightmap'];
+
+    // --- Top surface vertices (1-indexed: 1 .. width*height) ---
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const z = (data[idx] - min) / range;
+            lines.push(`v ${x / (width - 1)} ${y / (height - 1)} ${z}`);
+        }
+    }
+
+    // --- Bottom surface vertices (width*height+1 .. 2*width*height) ---
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            lines.push(`v ${x / (width - 1)} ${y / (height - 1)} 0`);
+        }
+    }
+
+    const topBase = 1; // 1-indexed
+    const botBase = width * height + 1;
+
+    // --- Top surface faces ---
+    for (let y = 0; y < height - 1; y++) {
+        for (let x = 0; x < width - 1; x++) {
+            const v00 = topBase + y * width + x;
+            const v10 = v00 + 1;
+            const v01 = v00 + width;
+            const v11 = v01 + 1;
+            lines.push(`f ${v00} ${v10} ${v11}`);
+            lines.push(`f ${v00} ${v11} ${v01}`);
+        }
+    }
+
+    // --- Bottom surface faces (flipped winding) ---
+    for (let y = 0; y < height - 1; y++) {
+        for (let x = 0; x < width - 1; x++) {
+            const v00 = botBase + y * width + x;
+            const v10 = v00 + 1;
+            const v01 = v00 + width;
+            const v11 = v01 + 1;
+            lines.push(`f ${v00} ${v11} ${v10}`);
+            lines.push(`f ${v00} ${v01} ${v11}`);
+        }
+    }
+
+    // --- Side walls ---
+    // Bottom edge (y=0)
+    for (let x = 0; x < width - 1; x++) {
+        const t0 = topBase + x, t1 = t0 + 1;
+        const b0 = botBase + x, b1 = b0 + 1;
+        lines.push(`f ${t0} ${b0} ${b1}`);
+        lines.push(`f ${t0} ${b1} ${t1}`);
+    }
+    // Top edge (y=height-1)
+    for (let x = 0; x < width - 1; x++) {
+        const t0 = topBase + (height - 1) * width + x, t1 = t0 + 1;
+        const b0 = botBase + (height - 1) * width + x, b1 = b0 + 1;
+        lines.push(`f ${t0} ${t1} ${b1}`);
+        lines.push(`f ${t0} ${b1} ${b0}`);
+    }
+    // Left edge (x=0)
+    for (let y = 0; y < height - 1; y++) {
+        const t0 = topBase + y * width, t1 = t0 + width;
+        const b0 = botBase + y * width, b1 = b0 + width;
+        lines.push(`f ${t0} ${t1} ${b1}`);
+        lines.push(`f ${t0} ${b1} ${b0}`);
+    }
+    // Right edge (x=width-1)
+    for (let y = 0; y < height - 1; y++) {
+        const t0 = topBase + y * width + (width - 1), t1 = t0 + width;
+        const b0 = botBase + y * width + (width - 1), b1 = b0 + width;
+        lines.push(`f ${t0} ${b0} ${b1}`);
+        lines.push(`f ${t0} ${b1} ${t1}`);
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 export function downloadHeightmapRaw(data, width, height, filename = 'heightmap.bin') {
     // Prepend a small header: width (uint32), height (uint32), then float32 data
     const header = new Uint32Array([width, height]);

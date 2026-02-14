@@ -196,8 +196,13 @@ out vec4 outColor;
 uniform sampler2D A;
 uniform sampler2D B;
 uniform float stepSize;
+uniform float resolution;
 void main() {
-    outColor.rgb = texture(A, uv).rgb + texture(B, uv).rgb * stepSize;
+    // Pin boundary vertices: smooth falloff over ~2 vertices from each edge
+    float border = 2.0 / resolution;
+    float d = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+    float mask = smoothstep(0.0, border, d);
+    outColor.rgb = (texture(A, uv).rgb + texture(B, uv).rgb * stepSize) * mask;
     outColor.a = 1.0;
 }
 `;
@@ -227,7 +232,7 @@ out vec4 outColor;
 uniform sampler2D map;
 uniform float gain;
 void main() {
-    outColor.rgb = vec3(texture(map, uv).r * gain + 0.5);
+    outColor.rgb = vec3(texture(map, uv).r * gain);
     outColor.a = 1.0;
 }
 `;

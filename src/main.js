@@ -2,7 +2,7 @@
 
 import { initGL, fullscreenPass, uploadTexture } from './gl.js';
 import { CausticSolver } from './cascade.js';
-import { readHeightmap, downloadHeightmapPNG } from './export.js';
+import { readHeightmap, downloadHeightmapPNG, downloadHeightmapOBJ } from './export.js';
 
 // =============== State =============== //
 
@@ -21,6 +21,7 @@ const resolutionSelect = document.getElementById('resolution-select');
 const generateBtn = document.getElementById('generate-btn');
 const abortBtn = document.getElementById('abort-btn');
 const downloadBtn = document.getElementById('download-btn');
+const downloadObjBtn = document.getElementById('download-obj-btn');
 const progressBar = document.getElementById('progress-bar');
 const progressFill = document.getElementById('progress-fill');
 const statusText = document.getElementById('status-text');
@@ -103,6 +104,7 @@ async function runSolve() {
     generateBtn.disabled = true;
     abortBtn.disabled = false;
     downloadBtn.disabled = true;
+    downloadObjBtn.disabled = true;
     progressBar.style.display = 'block';
 
     // Clean up previous solver
@@ -133,6 +135,7 @@ async function runSolve() {
         if (result) {
             statusText.textContent = 'Done! Download the heightmap.';
             downloadBtn.disabled = false;
+            downloadObjBtn.disabled = false;
             renderPreview(result.finalLevel);
         } else {
             statusText.textContent = 'Aborted.';
@@ -158,11 +161,11 @@ function renderPreview(transportLevel) {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Left half: lightmap (tonemapped)
+    // Left half: lightmap (linear, scaled to match input brightness)
     gl.viewport(0, 0, halfW, h);
-    fullscreenPass(gl, solver.programs.tonemap,
+    fullscreenPass(gl, solver.programs.display,
         { map: transportLevel.lightmap.texture },
-        { exposure: 5.0 },
+        { gain: 1.0 / targetScale },
         null
     );
 
@@ -231,6 +234,13 @@ downloadBtn.addEventListener('click', () => {
     const data = readHeightmap(gl, result.heightmapFBO);
     const res = result.heightmapFBO.width;
     downloadHeightmapPNG(data, res, res);
+});
+
+downloadObjBtn.addEventListener('click', () => {
+    if (!result || !result.heightmapFBO) return;
+    const data = readHeightmap(gl, result.heightmapFBO);
+    const res = result.heightmapFBO.width;
+    downloadHeightmapOBJ(data, res, res);
 });
 
 // =============== Start =============== //

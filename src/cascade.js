@@ -11,13 +11,13 @@ import * as Shaders from './shaders.js';
  * Fine levels: small steps, fewer iterations (expensive but already close).
  */
 const DEFAULT_SCHEDULE = {
-    8:   { stepSize: 0.002,   iterations: 800 },
-    16:  { stepSize: 0.001,   iterations: 600 },
-    32:  { stepSize: 0.0005,  iterations: 400 },
-    64:  { stepSize: 0.0002,  iterations: 300 },
-    128: { stepSize: 0.0001,  iterations: 200 },
-    256: { stepSize: 0.00005, iterations: 200 },
-    512: { stepSize: 0.00002, iterations: 150 },
+    8:   { stepSize: 0.002,   iterations: 80 },
+    16:  { stepSize: 0.001,   iterations: 80 },
+    32:  { stepSize: 0.0005,  iterations: 80 },
+    64:  { stepSize: 0.0002,  iterations: 30 },
+    128: { stepSize: 0.0001,  iterations: 20 },
+    256: { stepSize: 0.00005, iterations: 20 },
+    512: { stepSize: 0.00002, iterations: 15 },
 };
 
 /**
