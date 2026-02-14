@@ -11,13 +11,15 @@ import * as Shaders from './shaders.js';
  * Fine levels: small steps, fewer iterations (expensive but already close).
  */
 const DEFAULT_SCHEDULE = {
-    8:   { stepSize: 0.002,   iterations: 80 },
-    16:  { stepSize: 0.001,   iterations: 80 },
-    32:  { stepSize: 0.0005,  iterations: 80 },
-    64:  { stepSize: 0.0002,  iterations: 30 },
-    128: { stepSize: 0.0001,  iterations: 20 },
-    256: { stepSize: 0.00005, iterations: 20 },
-    512: { stepSize: 0.00002, iterations: 15 },
+    8:    { stepSize: 0.2,    iterations: 180 },
+    16:   { stepSize: 0.1,    iterations: 180 },
+    32:   { stepSize: 0.05,   iterations: 180 },
+    64:   { stepSize: 0.02,   iterations: 130 },
+    128:  { stepSize: 0.01,   iterations: 120 },
+    256:  { stepSize: 0.005,  iterations: 120 },
+    512:  { stepSize: 0.002,  iterations: 60 },
+    1024: { stepSize: 0.001,  iterations: 30 },
+    2048: { stepSize: 0.0005, iterations: 15 },
 };
 
 /**
@@ -49,6 +51,7 @@ export class CausticSolver {
             display:       createProgram(gl, Shaders.fullscreenVert, Shaders.displayFrag),
             tonemap:       createProgram(gl, Shaders.fullscreenVert, Shaders.tonemapFrag),
             displacementViz: createProgram(gl, Shaders.fullscreenVert, Shaders.displacementVizFrag),
+            diffViz:         createProgram(gl, Shaders.fullscreenVert, Shaders.diffVizFrag),
         };
 
         // Build Poisson solver hierarchy for the target resolution
@@ -84,6 +87,7 @@ export class CausticSolver {
             onLevelComplete = () => {},
             schedule = DEFAULT_SCHEDULE,
             targetScale = 1.0,
+            transportGain = 1.0,
         } = options;
 
         this.aborted = false;
@@ -101,7 +105,12 @@ export class CausticSolver {
                 iterations: 200,
             };
 
-            console.log(`Cascade level ${li + 1}/${totalLevels}: ${res}x${res} (${config.iterations} iters, step=${config.stepSize})`);
+            // Poisson solve now correctly applies h^2 = 1/res^2 in Jacobi updates.
+            // To keep displacement update magnitudes comparable to previous tuning,
+            // scale the transport step by res^2, then apply a global user gain.
+            const effectiveStepSize = config.stepSize * res * res * transportGain;
+
+            console.log(`Cascade level ${li + 1}/${totalLevels}: ${res}x${res} (${config.iterations} iters, step=${effectiveStepSize} from base=${config.stepSize}, gain=${transportGain})`);
 
             // Create transport level for this resolution
             currentLevel = new TransportLevel(
@@ -120,7 +129,7 @@ export class CausticSolver {
             for (let i = 0; i < config.iterations; i++) {
                 if (this.aborted) break;
 
-                currentLevel.iterate(targetTexture, sourceTexture, config.stepSize, targetScale);
+                currentLevel.iterate(targetTexture, sourceTexture, effectiveStepSize, targetScale);
 
                 // Yield to browser periodically for UI responsiveness
                 const now = performance.now();

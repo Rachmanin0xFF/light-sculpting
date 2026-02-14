@@ -68,7 +68,7 @@ void main() {
 `;
 
 export const densityFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform float resolution;
@@ -104,7 +104,7 @@ void main() {
 `;
 
 export const transportFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform sampler2D densities;
@@ -116,7 +116,7 @@ void main() {
 `;
 
 export const subtractFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform sampler2D A;
@@ -126,33 +126,42 @@ void main() {
     float n1 = texture(A, uv).r * targetScale;
     float n2 = texture(B, uv).r;
     outColor.r = n1 - n2;
-    // Slight inward pressure at boundary
-    float border = 0.005;
-    if (uv.x > 1.0 - border || uv.y > 1.0 - border || uv.x < border || uv.y < border)
-        outColor.r = -0.02;
+
+    float border = 0.04;
+    float d = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+    float mask = smoothstep(0.0, border, d);
+    if(mask < 0.99) outColor.r = 0.0;
     outColor.a = 1.0;
 }
 `;
 
 export const poissonFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform float resolution;
 uniform sampler2D map_density;
 uniform sampler2D map_iter;
 void main() {
+    // Dirichlet BC: force zero at boundary texels
+    float halfTexel = 0.5 / resolution;
+    if (uv.x < halfTexel * 1.5 || uv.x > 1.0 - halfTexel * 1.5 ||
+        uv.y < halfTexel * 1.5 || uv.y > 1.0 - halfTexel * 1.5) {
+        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     float s1 = texture(map_iter, uv + vec2(0.0,  1.0) / resolution).x;
     float s2 = texture(map_iter, uv + vec2(0.0, -1.0) / resolution).x;
     float s3 = texture(map_iter, uv + vec2( 1.0, 0.0) / resolution).x;
     float s4 = texture(map_iter, uv + vec2(-1.0, 0.0) / resolution).x;
-    outColor.r = (s1 + s2 + s3 + s4) * 0.25 + texture(map_density, uv).x * 0.25;
+    float invResSq = 1.0 / (resolution * resolution);
+    outColor.r = (s1 + s2 + s3 + s4 + texture(map_density, uv).x * invResSq) * 0.25;
     outColor.a = 1.0;
 }
 `;
 
 export const gradientFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform float resolution;
@@ -169,7 +178,7 @@ void main() {
 `;
 
 export const calculateFlowFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform sampler2D map_delta;
@@ -190,7 +199,7 @@ void main() {
 `;
 
 export const addMultFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform sampler2D A;
@@ -208,7 +217,7 @@ void main() {
 `;
 
 export const divergenceFrag = `#version 300 es
-precision mediump float;
+precision highp float;
 in vec2 uv;
 out vec4 outColor;
 uniform float resolution;
@@ -247,6 +256,21 @@ void main() {
     float v = texture(map, uv).r * exposure;
     outColor.rgb = vec3(v / (1.0 + v));
     outColor.a = 1.0;
+}
+`;
+
+export const diffVizFrag = `#version 300 es
+precision mediump float;
+in vec2 uv;
+out vec4 outColor;
+uniform sampler2D map;
+uniform float gain;
+void main() {
+    float v = texture(map, uv).r * gain;
+    float pos = max(v, 0.0);
+    float neg = max(-v, 0.0);
+    outColor = vec4(pos, 0.0, neg, 1.0);
+    outColor.g = 0.1 + 0.2*sin(100.0 * v);
 }
 `;
 

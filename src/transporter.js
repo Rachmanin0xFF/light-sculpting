@@ -60,6 +60,9 @@ export class TransportLevel {
         // Heightmap from Helmholtz decomposition
         this.heightmap = createFBO(gl, res, res, 'R32F', gl.LINEAR);
 
+        // Poisson solution of the difference (for debug display)
+        this.poissonResult = createFBO(gl, res, res, 'RG32F', gl.LINEAR);
+
         // Scratch buffers
         this.tempA = createFBO(gl, res, res, 'RG32F', gl.LINEAR);
         this.tempB = createFBO(gl, res, res, 'RG32F', gl.LINEAR);
@@ -133,11 +136,11 @@ export class TransportLevel {
         );
 
         // --- 4. Poisson solve on error ---
-        this.poissonSolver.solve(this.difference, this.tempB, res);
+        this.poissonSolver.solve(this.difference, this.poissonResult, res);
 
         // --- 5. Gradient of Poisson solution ---
         fullscreenPass(gl, progs.gradient,
-            { map: this.tempB.texture },
+            { map: this.poissonResult.texture },
             { resolution: res },
             this.gradient
         );
@@ -214,6 +217,7 @@ export class TransportLevel {
         destroyFBO(gl, this.densities);
         this.lightmap.destroy();
         destroyFBO(gl, this.difference);
+        destroyFBO(gl, this.poissonResult);
         destroyFBO(gl, this.gradient);
         destroyFBO(gl, this.flow);
         destroyFBO(gl, this.divergence);

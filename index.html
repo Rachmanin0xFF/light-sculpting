@@ -122,7 +122,14 @@
                 <option value="128">128</option>
                 <option value="256" selected>256</option>
                 <option value="512">512</option>
+                <option value="1024">1024</option>
+                <option value="2048">2048</option>
             </select>
+        </label>
+        <label>
+            Transport Gain:
+            <input type="range" id="transport-gain" min="0.1" max="20" step="0.1" value="1.0">
+            <span id="transport-gain-value">1.0×</span>
         </label>
         <button id="generate-btn" class="primary" disabled>Generate</button>
         <button id="abort-btn" class="danger" disabled>Abort</button>

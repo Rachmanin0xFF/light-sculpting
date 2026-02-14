@@ -10,6 +10,7 @@ let gl = null;
 let solver = null;
 let targetTexture = null;
 let targetScale = 1.0;     // 1/meanBrightness — normalizes target to match source total
+const energySurplus = 0.65; // <1 = solver has more light than target needs, excess pushed to edges
 let sourceTexture = null;  // uniform white source
 let result = null;
 
@@ -18,6 +19,8 @@ let result = null;
 const canvas = document.getElementById('canvas');
 const fileInput = document.getElementById('file-input');
 const resolutionSelect = document.getElementById('resolution-select');
+const transportGainInput = document.getElementById('transport-gain');
+const transportGainValue = document.getElementById('transport-gain-value');
 const generateBtn = document.getElementById('generate-btn');
 const abortBtn = document.getElementById('abort-btn');
 const downloadBtn = document.getElementById('download-btn');
@@ -32,9 +35,9 @@ const preview = document.getElementById('preview');
 function init() {
     gl = initGL(canvas);
 
-    // Side-by-side: lightmap (left) + displacement (right)
+    // 2x2 grid: lightmap | displacement / difference | poisson
     canvas.width = 1024;
-    canvas.height = 512;
+    canvas.height = 1024;
 
     // Create a 1x1 white texture as the default uniform source
     const whitePixel = new Uint8Array([255, 255, 255, 255]);
@@ -44,6 +47,8 @@ function init() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.bindTexture(gl.TEXTURE_2D, null);
+
+    transportGainValue.textContent = `${parseFloat(transportGainInput.value).toFixed(1)}×`;
 
     statusText.textContent = 'Upload a target image to begin.';
 }
@@ -100,6 +105,7 @@ async function runSolve() {
     }
 
     const targetRes = parseInt(resolutionSelect.value);
+    const transportGain = parseFloat(transportGainInput.value);
 
     generateBtn.disabled = true;
     abortBtn.disabled = false;
@@ -119,6 +125,7 @@ async function runSolve() {
     try {
         result = await solver.solve(targetTexture, sourceTexture, {
             targetScale,
+            transportGain,
             onProgress({ level, resolution, iteration, totalIterations, totalLevels, transportLevel }) {
                 const levelProgress = iteration / totalIterations;
                 const overallProgress = (level + levelProgress) / totalLevels;
@@ -151,8 +158,8 @@ async function runSolve() {
 
 function renderPreview(transportLevel) {
     if (!transportLevel || !solver) return;
-    const halfW = canvas.width / 2;
-    const h = canvas.height;
+    const pw = canvas.width / 2;
+    const ph = canvas.height / 2;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
@@ -161,19 +168,35 @@ function renderPreview(transportLevel) {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Left half: lightmap (linear, scaled to match input brightness)
-    gl.viewport(0, 0, halfW, h);
+    // Top-left: lightmap
+    gl.viewport(0, ph, pw, ph);
     fullscreenPass(gl, solver.programs.display,
         { map: transportLevel.lightmap.texture },
         { gain: 1.0 / targetScale },
         null
     );
 
-    // Right half: displacement field (sine fringe visualization)
-    gl.viewport(halfW, 0, halfW, h);
+    // Top-right: displacement field (sine fringe visualization)
+    gl.viewport(pw, ph, pw, ph);
     fullscreenPass(gl, solver.programs.displacementViz,
         { map: transportLevel.displacements.texture },
         {},
+        null
+    );
+
+    // Bottom-left: difference (target - lightmap), red=positive, blue=negative
+    gl.viewport(0, 0, pw, ph);
+    fullscreenPass(gl, solver.programs.diffViz,
+        { map: transportLevel.difference.texture },
+        { gain: 1.5 },
+        null
+    );
+
+    // Bottom-right: Poisson solution of difference, red=positive, blue=negative
+    gl.viewport(pw, 0, pw, ph);
+    fullscreenPass(gl, solver.programs.diffViz,
+        { map: transportLevel.poissonResult.texture },
+        { gain: 10.5 },
         null
     );
 }
@@ -196,7 +219,7 @@ fileInput.addEventListener('change', async (e) => {
         // Upload as WebGL texture
         if (targetTexture) gl.deleteTexture(targetTexture);
         targetTexture = uploadTexture(gl, prepared);
-        targetScale = 1.0 / meanBrightness;
+        targetScale = energySurplus / meanBrightness;
 
         statusText.textContent = `Image loaded (${img.width}x${img.height} → ${targetRes}x${targetRes}, mean=${meanBrightness.toFixed(3)}). Click Generate.`;
         generateBtn.disabled = false;
@@ -217,10 +240,15 @@ resolutionSelect.addEventListener('change', async () => {
 
         if (targetTexture) gl.deleteTexture(targetTexture);
         targetTexture = uploadTexture(gl, prepared);
-        targetScale = 1.0 / meanBrightness;
+        targetScale = energySurplus / meanBrightness;
 
         statusText.textContent = `Image re-prepared at ${targetRes}x${targetRes}. Click Generate.`;
     }
+});
+
+transportGainInput.addEventListener('input', () => {
+    const gain = parseFloat(transportGainInput.value);
+    transportGainValue.textContent = `${gain.toFixed(1)}×`;
 });
 
 generateBtn.addEventListener('click', () => runSolve());
