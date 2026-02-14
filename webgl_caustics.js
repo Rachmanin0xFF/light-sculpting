@@ -251,7 +251,7 @@ out vec4 outColor;
 uniform sampler2D A;
 uniform sampler2D B;
 void main() {
-    outColor.rgb = texture(A, uv).rgb + texture(B, uv).rgb*0.001;
+    outColor.rgb = texture(A, uv).rgb + texture(B, uv).rgb*0.0001;
     outColor.a = 1.0;
 }
 `

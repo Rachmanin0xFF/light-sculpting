@@ -2,30 +2,144 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Caustics Test</title>
-    <link rel="icon" type="image/x-icon" href="#">
-    <style> body { margin: 0; } </style>
+    <title>Light Sculpting — Caustic Engineering</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <style>
-    canvas {
-        width: 100vw;
-        height: 100vh;
-        display: block;
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: -9999;
-      }
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #111;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin: 0 0 1.5rem;
+            letter-spacing: 0.05em;
+        }
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        label {
+            font-size: 0.85rem;
+            color: #999;
+        }
+        select, button, input[type="file"]::file-selector-button {
+            background: #222;
+            color: #eee;
+            border: 1px solid #444;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        select:hover, button:hover:not(:disabled) {
+            border-color: #888;
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        button.primary {
+            background: #2a5a8a;
+            border-color: #3a7aba;
+        }
+        button.primary:hover:not(:disabled) {
+            background: #3a7aba;
+        }
+        button.danger {
+            background: #8a2a2a;
+            border-color: #ba3a3a;
+        }
+        .progress-bar {
+            width: 100%;
+            max-width: 512px;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4a9aea;
+            width: 0%;
+            transition: width 0.1s;
+        }
+        .status {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .viewport {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            border: 1px solid #333;
+            border-radius: 4px;
+            max-width: 1024px;
+            max-height: 512px;
+        }
+        #preview {
+            max-width: 200px;
+            max-height: 200px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            display: none;
+        }
+        input[type="file"] {
+            font-size: 0.85rem;
+            color: #999;
+        }
     </style>
 </head>
 <body>
-    <script type="importmap">
-        {
-            "imports": {
-                "threeCDN": "https://cdn.skypack.dev/three@0.145.0/build/three.module",
-                "three": "/three.module.js"
-            }
-        }
-    </script>
-    <script type="module" src="/webgl_caustics.js"></script>
+    <h1>Light Sculpting</h1>
+
+    <div class="controls">
+        <input type="file" id="file-input" accept="image/*">
+        <label>
+            Resolution:
+            <select id="resolution-select">
+                <option value="64">64</option>
+                <option value="128">128</option>
+                <option value="256" selected>256</option>
+                <option value="512">512</option>
+            </select>
+        </label>
+        <button id="generate-btn" class="primary" disabled>Generate</button>
+        <button id="abort-btn" class="danger" disabled>Abort</button>
+        <button id="download-btn" disabled>Download Heightmap</button>
+    </div>
+
+    <div class="progress-bar" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <div class="status" id="status-text">Loading...</div>
+
+    <div class="viewport">
+        <img id="preview" alt="Target preview">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
