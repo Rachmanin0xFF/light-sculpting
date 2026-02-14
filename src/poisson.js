@@ -121,6 +121,35 @@ export class PoissonSolver {
     }
 
     /**
+     * Run multiple V-cycles for high-accuracy solves (e.g. heightmap recovery).
+     * Each cycle does down(1) → up(1) → down(fineIter), without clearing between cycles.
+     */
+    solveMultiVCycle(inputFBO, outputFBO, maxRes, cycles = 8, fineIter = 80) {
+        const maxIdx = this.levelIndexForResolution(maxRes);
+        this.clearAll();
+
+        for (let c = 0; c < cycles; c++) {
+            // Down sweep (coarse → fine), 1 sub-iteration each
+            for (let i = 0; i <= maxIdx; i++) {
+                const seed = i > 0 ? this.levels[i - 1].b.texture : null;
+                this.relaxLevel(inputFBO, i, 1, seed);
+            }
+            // Up sweep (fine → coarse), 1 sub-iteration each
+            for (let i = maxIdx; i >= 0; i--) {
+                const seed = i < maxIdx ? this.levels[i + 1].b.texture : null;
+                this.relaxLevel(inputFBO, i, 1, seed);
+            }
+            // Down sweep again, more iterations at each level
+            for (let i = 0; i <= maxIdx; i++) {
+                const seed = i > 0 ? this.levels[i - 1].b.texture : null;
+                this.relaxLevel(inputFBO, i, fineIter, seed);
+            }
+        }
+
+        this.copyToOutput(maxIdx, outputFBO);
+    }
+
+    /**
      * Coarse-priority solve: single coarse-to-fine pass with many iterations per level.
      * Used for the Helmholtz decomposition and heightmap recovery.
      */

@@ -200,7 +200,7 @@ export class TransportLevel {
             { resolution: res },
             this.divergence
         );
-        this.poissonSolver.solveCoarsePriority(this.divergence, this.heightmap, res);
+        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res);
 
         return this.heightmap;
     }
