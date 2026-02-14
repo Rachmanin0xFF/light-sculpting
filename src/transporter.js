@@ -161,8 +161,8 @@ export class TransportLevel {
             this.divergence
         );
 
-        // 7b. Poisson solve on divergence
-        this.poissonSolver.solveCoarsePriority(this.divergence, this.heightmap, res);
+        // 7b. Poisson solve on divergence (needs good low-freq convergence to remove curl)
+        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res, 8, 80);
 
         // 7c. Gradient of solution = curl-free component
         fullscreenPass(gl, progs.gradient,
