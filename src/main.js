@@ -10,7 +10,7 @@ let gl = null;
 let solver = null;
 let targetTexture = null;
 let targetScale = 1.0;     // 1/meanBrightness — normalizes target to match source total
-const energySurplus = 0.65; // <1 = solver has more light than target needs, excess pushed to edges
+const energySurplus = 0.7; // <1 = solver has more light than target needs, excess pushed to edges
 let sourceTexture = null;  // uniform white source
 let result = null;
 

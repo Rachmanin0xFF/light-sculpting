@@ -12,14 +12,14 @@ import * as Shaders from './shaders.js';
  */
 const DEFAULT_SCHEDULE = {
     8:    { stepSize: 0.2,    iterations: 180 },
-    16:   { stepSize: 0.1,    iterations: 180 },
-    32:   { stepSize: 0.05,   iterations: 180 },
-    64:   { stepSize: 0.02,   iterations: 130 },
-    128:  { stepSize: 0.01,   iterations: 120 },
-    256:  { stepSize: 0.005,  iterations: 120 },
-    512:  { stepSize: 0.002,  iterations: 60 },
-    1024: { stepSize: 0.001,  iterations: 30 },
-    2048: { stepSize: 0.0005, iterations: 15 },
+    16:   { stepSize: 0.2,    iterations: 180 },
+    32:   { stepSize: 0.3,   iterations: 180 },
+    64:   { stepSize: 0.3,   iterations: 130 },
+    128:  { stepSize: 0.3,   iterations: 120 },
+    256:  { stepSize: 0.6,  iterations: 120 },
+    512:  { stepSize: 0.12,  iterations: 120 },
+    1024: { stepSize: 0.24,  iterations: 120 },
+    2048: { stepSize: 0.48, iterations: 120 },
 };
 
 /**

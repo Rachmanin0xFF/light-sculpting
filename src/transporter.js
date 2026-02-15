@@ -26,7 +26,7 @@ export class TransportLevel {
      * @param {PoissonSolver} poissonSolver - shared multigrid solver
      * @param {number} pixelDensity - supersampling factor for the lightmap
      */
-    constructor(gl, programs, resolution, poissonSolver, pixelDensity = 2) {
+    constructor(gl, programs, resolution, poissonSolver, pixelDensity = 8) {
         this.gl = gl;
         this.programs = programs;
         this.resolution = resolution;
