@@ -203,7 +203,7 @@ export class TransportLevel {
             { resolution: res },
             this.divergence
         );
-        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res);
+        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res, 8, 80, { neumann: true });
 
         return this.heightmap;
     }

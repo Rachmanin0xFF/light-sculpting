@@ -1,8 +1,14 @@
 'use strict';
 
-import { createProgram } from './gl.js';
-import { PoissonSolver } from './poisson.js';
-import { TransportLevel } from './transporter.js';
+import {
+    createProgram
+} from './gl.js';
+import {
+    PoissonSolver
+} from './poisson.js';
+import {
+    TransportLevel
+} from './transporter.js';
 import * as Shaders from './shaders.js';
 
 /**
@@ -11,15 +17,42 @@ import * as Shaders from './shaders.js';
  * Fine levels: small steps, fewer iterations (expensive but already close).
  */
 const DEFAULT_SCHEDULE = {
-    8:    { stepSize: 0.2,    iterations: 180 },
-    16:   { stepSize: 0.2,    iterations: 180 },
-    32:   { stepSize: 0.3,   iterations: 180 },
-    64:   { stepSize: 0.3,   iterations: 130 },
-    128:  { stepSize: 0.3,   iterations: 120 },
-    256:  { stepSize: 0.6,  iterations: 120 },
-    512:  { stepSize: 0.12,  iterations: 120 },
-    1024: { stepSize: 0.24,  iterations: 120 },
-    2048: { stepSize: 0.48, iterations: 120 },
+    8: {
+        stepSize: 0.2,
+        iterations: 180
+    },
+    16: {
+        stepSize: 0.2,
+        iterations: 180
+    },
+    32: {
+        stepSize: 0.3,
+        iterations: 180
+    },
+    64: {
+        stepSize: 0.3,
+        iterations: 130
+    },
+    128: {
+        stepSize: 0.48,
+        iterations: 120
+    },
+    256: {
+        stepSize: 0.48,
+        iterations: 120
+    },
+    512: {
+        stepSize: 1.96,
+        iterations: 120
+    },
+    1024: {
+        stepSize: 0.24,
+        iterations: 120
+    },
+    2048: {
+        stepSize: 0.48,
+        iterations: 120
+    },
 };
 
 /**
@@ -39,19 +72,20 @@ export class CausticSolver {
 
         // Compile all shader programs once
         this.programs = {
-            copy:          createProgram(gl, Shaders.fullscreenVert, Shaders.copyFrag),
-            density:       createProgram(gl, Shaders.fullscreenVert, Shaders.densityFrag),
-            transport:     createProgram(gl, Shaders.transportVert,  Shaders.transportFrag),
-            subtract:      createProgram(gl, Shaders.fullscreenVert, Shaders.subtractFrag),
-            gradient:      createProgram(gl, Shaders.fullscreenVert, Shaders.gradientFrag),
+            copy: createProgram(gl, Shaders.fullscreenVert, Shaders.copyFrag),
+            density: createProgram(gl, Shaders.fullscreenVert, Shaders.densityFrag),
+            transport: createProgram(gl, Shaders.transportVert, Shaders.transportFrag),
+            subtract: createProgram(gl, Shaders.fullscreenVert, Shaders.subtractFrag),
+            gradient: createProgram(gl, Shaders.fullscreenVert, Shaders.gradientFrag),
             calculateFlow: createProgram(gl, Shaders.fullscreenVert, Shaders.calculateFlowFrag),
-            divergence:    createProgram(gl, Shaders.fullscreenVert, Shaders.divergenceFrag),
-            addMult:       createProgram(gl, Shaders.fullscreenVert, Shaders.addMultFrag),
-            poisson:       createProgram(gl, Shaders.fullscreenVert, Shaders.poissonFrag),
-            display:       createProgram(gl, Shaders.fullscreenVert, Shaders.displayFrag),
-            tonemap:       createProgram(gl, Shaders.fullscreenVert, Shaders.tonemapFrag),
+            divergence: createProgram(gl, Shaders.fullscreenVert, Shaders.divergenceFrag),
+            addMult: createProgram(gl, Shaders.fullscreenVert, Shaders.addMultFrag),
+            poisson: createProgram(gl, Shaders.fullscreenVert, Shaders.poissonFrag),
+            poissonNeumann: createProgram(gl, Shaders.fullscreenVert, Shaders.poissonNeumannFrag),
+            display: createProgram(gl, Shaders.fullscreenVert, Shaders.displayFrag),
+            tonemap: createProgram(gl, Shaders.fullscreenVert, Shaders.tonemapFrag),
             displacementViz: createProgram(gl, Shaders.fullscreenVert, Shaders.displacementVizFrag),
-            diffViz:         createProgram(gl, Shaders.fullscreenVert, Shaders.diffVizFrag),
+            diffViz: createProgram(gl, Shaders.fullscreenVert, Shaders.diffVizFrag),
         };
 
         // Build Poisson solver hierarchy for the target resolution
@@ -84,10 +118,10 @@ export class CausticSolver {
     async solve(targetTexture, sourceTexture, options = {}) {
         const {
             onProgress = () => {},
-            onLevelComplete = () => {},
-            schedule = DEFAULT_SCHEDULE,
-            targetScale = 1.0,
-            transportGain = 1.0,
+                onLevelComplete = () => {},
+                schedule = DEFAULT_SCHEDULE,
+                targetScale = 1.0,
+                transportGain = 1.0,
         } = options;
 
         this.aborted = false;
@@ -133,7 +167,7 @@ export class CausticSolver {
 
                 // Yield to browser periodically for UI responsiveness
                 const now = performance.now();
-                if (now - lastYieldTime > 32) {  // ~30fps yield rate
+                if (now - lastYieldTime > 32) {
                     onProgress({
                         level: li,
                         resolution: res,

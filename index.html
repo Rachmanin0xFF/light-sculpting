@@ -2,75 +2,58 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Light Sculpting — Caustic Engineering</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>light-sculpting: caustic engineering</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; }
+
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'JetBrains Mono', monospace;
             background: #111;
             color: #eee;
             display: flex;
             flex-direction: column;
-            align-items: center;
             min-height: 100vh;
-            padding: 2rem 1rem;
         }
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 400;
-            margin: 0 0 1.5rem;
-            letter-spacing: 0.05em;
-        }
-        .controls {
+
+        /* ── Header ── */
+        header {
             display: flex;
-            gap: 0.75rem;
             align-items: center;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-bottom: 1rem;
+            gap: 1rem;
+            padding: 0.6rem 1.25rem;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
         }
-        label {
-            font-size: 0.85rem;
-            color: #999;
+        header h1 {
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 0;
+            letter-spacing: 0.08em;
+            color: #ccc;
+            white-space: nowrap;
         }
-        select, button, input[type="file"]::file-selector-button {
-            background: #222;
-            color: #eee;
-            border: 1px solid #444;
-            padding: 0.4rem 0.8rem;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-        select:hover, button:hover:not(:disabled) {
-            border-color: #888;
-        }
-        button:disabled {
-            opacity: 0.4;
-            cursor: default;
-        }
-        button.primary {
-            background: #2a5a8a;
-            border-color: #3a7aba;
-        }
-        button.primary:hover:not(:disabled) {
-            background: #3a7aba;
-        }
-        button.danger {
-            background: #8a2a2a;
-            border-color: #ba3a3a;
+        .status {
+            font-size: 0.75rem;
+            color: #555;
+            margin-left: auto;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .progress-bar {
-            width: 100%;
-            max-width: 512px;
-            height: 6px;
-            background: #333;
-            border-radius: 3px;
-            margin: 0.5rem 0;
+            width: 100px;
+            height: 3px;
+            background: #222;
+            border-radius: 2px;
             overflow: hidden;
             display: none;
+            flex-shrink: 0;
         }
         .progress-fill {
             height: 100%;
@@ -78,74 +61,287 @@
             width: 0%;
             transition: width 0.1s;
         }
-        .status {
+
+        /* ── Form controls (shared) ── */
+        label {
             font-size: 0.8rem;
-            color: #888;
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-        .viewport {
+            color: #777;
             display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-            flex-wrap: wrap;
-            justify-content: center;
+            flex-direction: column;
+            gap: 0.3rem;
         }
-        canvas {
+        select, button, input[type="file"]::file-selector-button {
+            background: #1a1a1a;
+            color: #eee;
             border: 1px solid #333;
-            border-radius: 4px;
-            max-width: 1024px;
-            max-height: 512px;
+            padding: 0.4rem 0.6rem;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
         }
-        #preview {
-            max-width: 200px;
-            max-height: 200px;
-            border: 1px solid #333;
-            border-radius: 4px;
-            display: none;
+        select { width: 100%; }
+        button  { width: 100%; }
+        select:hover, button:hover:not(:disabled) { border-color: #555; }
+        select:focus, button:focus { outline: none; border-color: #3a7aba; }
+        button:disabled { opacity: 0.3; cursor: default; }
+        button.primary {
+            background: #1e3f63;
+            border-color: #2d5f99;
+            color: #8ab8e8;
+        }
+        button.primary:hover:not(:disabled) {
+            background: #2a5a8a;
+            border-color: #3a7aba;
+            color: #eee;
+        }
+        button.danger {
+            background: #3a1a1a;
+            border-color: #6a2a2a;
+            color: #c87878;
+        }
+        button.danger:hover:not(:disabled) { background: #5a2020; color: #eee; }
+
+        .range-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+        input[type="range"] {
+            flex: 1;
+            min-width: 0;
+            accent-color: #3a7aba;
+            cursor: pointer;
+        }
+        .range-value {
+            font-size: 0.75rem;
+            color: #666;
+            min-width: 2.8rem;
+            text-align: right;
+            flex-shrink: 0;
         }
         input[type="file"] {
-            font-size: 0.85rem;
-            color: #999;
+            font-family: inherit;
+            font-size: 0.75rem;
+            color: #555;
+            width: 100%;
+            min-width: 0;
+        }
+        input[type="file"]::file-selector-button {
+            width: auto;
+            margin-right: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+        #preview {
+            width: 100%;
+            object-fit: contain;
+            border: 1px solid #222;
+            border-radius: 3px;
+            display: none;
+            background: #0a0a0a;
+        }
+
+        /* ── Section label ── */
+        .section-title {
+            font-size: 0.65rem;
+            letter-spacing: 0.12em;
+            color: #444;
+            text-transform: uppercase;
+            margin-bottom: 0.1rem;
+        }
+
+        /* ══════════════════════════════
+           Desktop: sidebar + canvas
+           ══════════════════════════════ */
+        .app {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            height: calc(100vh - 37px); /* subtract header */
+        }
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            border-right: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            gap: 1.25rem;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+        .viewport {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #0d0d0d;
+            min-width: 0;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid #222;
+            border-radius: 2px;
+        }
+
+        /* ── Mobile panel (hidden on desktop) ── */
+        .top-panel { display: none; }
+
+        /* ══════════════════════════════
+           Mobile: stacked layout
+           ══════════════════════════════ */
+        @media (max-width: 640px) {
+            body { overflow-y: auto; }
+
+            .app {
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+
+            /* hide sidebar, show top panel */
+            .sidebar { display: none; }
+            .top-panel {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.75rem 1.25rem;
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid #222;
+                align-items: flex-end;
+            }
+            .top-panel .panel-group {
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+                min-width: 0;
+            }
+            .top-panel .panel-group.file-group { flex: 1 1 100%; }
+            .top-panel .panel-group.param-group { flex: 1 1 140px; }
+            .top-panel .panel-group.action-group {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 0.4rem;
+                flex: 1 1 100%;
+            }
+            .top-panel .panel-group.action-group button { flex: 1 1 auto; width: auto; }
+
+            .viewport {
+                height: 60vw;
+                min-height: 200px;
+                max-height: 480px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Light Sculpting</h1>
 
-    <div class="controls">
-        <input type="file" id="file-input" accept="image/*">
-        <label>
-            Resolution:
-            <select id="resolution-select">
-                <option value="64">64</option>
-                <option value="128">128</option>
-                <option value="256" selected>256</option>
-                <option value="512">512</option>
-                <option value="1024">1024</option>
-                <option value="2048">2048</option>
-            </select>
-        </label>
-        <label>
-            Transport Gain:
-            <input type="range" id="transport-gain" min="0.1" max="20" step="0.1" value="1.0">
-            <span id="transport-gain-value">1.0×</span>
-        </label>
-        <button id="generate-btn" class="primary" disabled>Generate</button>
-        <button id="abort-btn" class="danger" disabled>Abort</button>
-        <button id="download-btn" disabled>Download Heightmap</button>
-        <button id="download-obj-btn" disabled>Download OBJ</button>
+    <header>
+        <h1>light-sculpting</h1>
+        <div class="progress-bar" id="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="status" id="status-text">loading…</div>
+    </header>
+
+    <!-- Mobile controls (< 640px) -->
+    <div class="top-panel">
+        <div class="panel-group file-group">
+            <div class="section-title">Input</div>
+            <input type="file" id="file-input-mobile" accept="image/*">
+        </div>
+        <div class="panel-group param-group">
+            <label>
+                Resolution
+                <select id="resolution-select-mobile">
+                    <option value="64">64</option>
+                    <option value="128">128</option>
+                    <option value="256" selected>256</option>
+                    <option value="512">512</option>
+                    <option value="1024">1024</option>
+                    <option value="2048">2048</option>
+                </select>
+            </label>
+        </div>
+        <div class="panel-group param-group">
+            <label>
+                Transport Gain
+                <div class="range-row">
+                    <input type="range" id="transport-gain-mobile" min="0.1" max="20" step="0.1" value="1.0">
+                    <span class="range-value" id="transport-gain-value-mobile">1.0×</span>
+                </div>
+            </label>
+        </div>
+        <div class="panel-group action-group">
+            <button id="generate-btn-mobile" class="primary" disabled>Generate</button>
+            <button id="abort-btn-mobile"    class="danger"  disabled>Abort</button>
+            <button id="download-btn-mobile"     disabled>↓ Heightmap</button>
+            <button id="download-obj-btn-mobile" disabled>↓ OBJ</button>
+            <button id="download-raw-btn-mobile" disabled>↓ Raw</button>
+        </div>
     </div>
 
-    <div class="progress-bar" id="progress-bar">
-        <div class="progress-fill" id="progress-fill"></div>
-    </div>
+    <div class="app">
 
-    <div class="status" id="status-text">Loading...</div>
+        <!-- Desktop sidebar (≥ 640px) -->
+        <aside class="sidebar">
 
-    <div class="viewport">
-        <img id="preview" alt="Target preview">
-        <canvas id="canvas"></canvas>
+            <div class="sidebar-section">
+                <div class="section-title">Input</div>
+                <input type="file" id="file-input" accept="image/*">
+                <img id="preview" alt="Target preview">
+            </div>
+
+            <div class="sidebar-section">
+                <div class="section-title">Parameters</div>
+                <label>
+                    Resolution
+                    <select id="resolution-select">
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256" selected>256</option>
+                        <option value="512">512</option>
+                        <option value="1024">1024</option>
+                        <option value="2048">2048</option>
+                    </select>
+                </label>
+                <label>
+                    Transport Gain
+                    <div class="range-row">
+                        <input type="range" id="transport-gain" min="0.1" max="20" step="0.1" value="1.0">
+                        <span class="range-value" id="transport-gain-value">1.0×</span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="section-title">Actions</div>
+                <button id="generate-btn" class="primary" disabled>Generate</button>
+                <button id="abort-btn"    class="danger"  disabled>Abort</button>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="section-title">Export</div>
+                <button id="download-btn"     disabled>Download Heightmap</button>
+                <button id="download-obj-btn" disabled>Download OBJ</button>
+                <button id="download-raw-btn" disabled>Download Raw</button>
+            </div>
+
+        </aside>
+
+        <main class="viewport">
+            <canvas id="canvas"></canvas>
+        </main>
+
     </div>
 
     <script type="module" src="/src/main.js"></script>

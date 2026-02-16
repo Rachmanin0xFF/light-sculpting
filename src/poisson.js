@@ -17,6 +17,7 @@ export class PoissonSolver {
     constructor(gl, programs, maxResolution) {
         this.gl = gl;
         this.poissonProg = programs.poisson;
+        this.poissonNeumannProg = programs.poissonNeumann;
         this.copyProg = programs.copy;
 
         // Build grid hierarchy: halving from maxResolution down to 8
@@ -53,8 +54,9 @@ export class PoissonSolver {
      * @param {number} subIter - number of Jacobi iterations
      * @param {WebGLTexture|null} seedTexture - if provided, seed from this texture on first iteration
      */
-    relaxLevel(inputFBO, levelIdx, subIter, seedTexture = null) {
+    relaxLevel(inputFBO, levelIdx, subIter, seedTexture = null, prog = null) {
         const level = this.levels[levelIdx];
+        const shader = prog || this.poissonProg;
 
         for (let j = 0; j < subIter; j++) {
             let sourceB = level.b;
@@ -63,12 +65,12 @@ export class PoissonSolver {
                 sourceB = { texture: seedTexture };
             }
 
-            fullscreenPass(this.gl, this.poissonProg,
+            fullscreenPass(this.gl, shader,
                 { map_density: inputFBO.texture, map_iter: sourceB.texture },
                 { resolution: level.resolution },
                 level.a
             );
-            fullscreenPass(this.gl, this.poissonProg,
+            fullscreenPass(this.gl, shader,
                 { map_density: inputFBO.texture, map_iter: level.a.texture },
                 { resolution: level.resolution },
                 level.b
@@ -124,25 +126,26 @@ export class PoissonSolver {
      * Run multiple V-cycles for high-accuracy solves (e.g. heightmap recovery).
      * Each cycle does down(1) → up(1) → down(fineIter), without clearing between cycles.
      */
-    solveMultiVCycle(inputFBO, outputFBO, maxRes, cycles = 8, fineIter = 80) {
+    solveMultiVCycle(inputFBO, outputFBO, maxRes, cycles = 8, fineIter = 80, { neumann = false } = {}) {
         const maxIdx = this.levelIndexForResolution(maxRes);
+        const prog = neumann ? this.poissonNeumannProg : null;
         this.clearAll();
 
         for (let c = 0; c < cycles; c++) {
             // Down sweep (coarse → fine), 1 sub-iteration each
             for (let i = 0; i <= maxIdx; i++) {
                 const seed = i > 0 ? this.levels[i - 1].b.texture : null;
-                this.relaxLevel(inputFBO, i, 1, seed);
+                this.relaxLevel(inputFBO, i, 1, seed, prog);
             }
             // Up sweep (fine → coarse), 1 sub-iteration each
             for (let i = maxIdx; i >= 0; i--) {
                 const seed = i < maxIdx ? this.levels[i + 1].b.texture : null;
-                this.relaxLevel(inputFBO, i, 1, seed);
+                this.relaxLevel(inputFBO, i, 1, seed, prog);
             }
             // Down sweep again, more iterations at each level
             for (let i = 0; i <= maxIdx; i++) {
                 const seed = i > 0 ? this.levels[i - 1].b.texture : null;
-                this.relaxLevel(inputFBO, i, fineIter, seed);
+                this.relaxLevel(inputFBO, i, fineIter, seed, prog);
             }
         }
 

@@ -2,16 +2,16 @@
 
 import { initGL, fullscreenPass, uploadTexture } from './gl.js';
 import { CausticSolver } from './cascade.js';
-import { readHeightmap, downloadHeightmapPNG, downloadHeightmapOBJ } from './export.js';
+import { readHeightmap, downloadHeightmapPNG, downloadHeightmapOBJ, downloadHeightmapRaw } from './export.js';
 
 // =============== State =============== //
 
 let gl = null;
 let solver = null;
 let targetTexture = null;
-let targetScale = 1.0;     // 1/meanBrightness — normalizes target to match source total
-const energySurplus = 0.7; // <1 = solver has more light than target needs, excess pushed to edges
-let sourceTexture = null;  // uniform white source
+let targetMultiplier = null;     // This gets passed to the shaders to scale the target brightness!
+const destImageExposure = 0.85; // If this is smaller than 1, the solver will have more light to push around than it actually needs.
+let sourceTexture = null;  // A white texture by default, but could be set to a spotlight or something.
 let result = null;
 
 // =============== DOM =============== //
@@ -25,6 +25,7 @@ const generateBtn = document.getElementById('generate-btn');
 const abortBtn = document.getElementById('abort-btn');
 const downloadBtn = document.getElementById('download-btn');
 const downloadObjBtn = document.getElementById('download-obj-btn');
+const downloadRawBtn = document.getElementById('download-raw-btn');
 const progressBar = document.getElementById('progress-bar');
 const progressFill = document.getElementById('progress-fill');
 const statusText = document.getElementById('status-text');
@@ -111,6 +112,7 @@ async function runSolve() {
     abortBtn.disabled = false;
     downloadBtn.disabled = true;
     downloadObjBtn.disabled = true;
+    downloadRawBtn.disabled = true;
     progressBar.style.display = 'block';
 
     // Clean up previous solver
@@ -120,11 +122,11 @@ async function runSolve() {
 
     solver = new CausticSolver(gl, targetRes);
 
-    statusText.textContent = 'Solving...';
+    statusText.textContent = 'solving...';
 
     try {
         result = await solver.solve(targetTexture, sourceTexture, {
-            targetScale,
+            targetScale: targetMultiplier,
             transportGain,
             onProgress({ level, resolution, iteration, totalIterations, totalLevels, transportLevel }) {
                 const levelProgress = iteration / totalIterations;
@@ -143,6 +145,7 @@ async function runSolve() {
             statusText.textContent = 'Done! Download the heightmap.';
             downloadBtn.disabled = false;
             downloadObjBtn.disabled = false;
+            downloadRawBtn.disabled = false;
             renderPreview(result.finalLevel);
         } else {
             statusText.textContent = 'Aborted.';
@@ -172,7 +175,7 @@ function renderPreview(transportLevel) {
     gl.viewport(0, ph, pw, ph);
     fullscreenPass(gl, solver.programs.display,
         { map: transportLevel.lightmap.texture },
-        { gain: 1.0 / targetScale },
+        { gain: 1.0 / targetMultiplier },
         null
     );
 
@@ -219,7 +222,7 @@ fileInput.addEventListener('change', async (e) => {
         // Upload as WebGL texture
         if (targetTexture) gl.deleteTexture(targetTexture);
         targetTexture = uploadTexture(gl, prepared);
-        targetScale = energySurplus / meanBrightness;
+        targetMultiplier = destImageExposure / meanBrightness;
 
         statusText.textContent = `Image loaded (${img.width}x${img.height} → ${targetRes}x${targetRes}, mean=${meanBrightness.toFixed(3)}). Click Generate.`;
         generateBtn.disabled = false;
@@ -240,7 +243,7 @@ resolutionSelect.addEventListener('change', async () => {
 
         if (targetTexture) gl.deleteTexture(targetTexture);
         targetTexture = uploadTexture(gl, prepared);
-        targetScale = energySurplus / meanBrightness;
+        targetMultiplier = destImageExposure / meanBrightness;
 
         statusText.textContent = `Image re-prepared at ${targetRes}x${targetRes}. Click Generate.`;
     }
@@ -271,6 +274,11 @@ downloadObjBtn.addEventListener('click', () => {
     downloadHeightmapOBJ(data, res, res);
 });
 
-// =============== Start =============== //
+downloadRawBtn.addEventListener('click', () => {
+    if (!result || !result.heightmapFBO) return;
+    const data = readHeightmap(gl, result.heightmapFBO);
+    const res = result.heightmapFBO.width;
+    downloadHeightmapRaw(data, res, res);
+});
 
 init();

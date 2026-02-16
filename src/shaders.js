@@ -160,6 +160,25 @@ void main() {
 }
 `;
 
+// Neumann BC variant: zero-derivative at boundaries (CLAMP_TO_EDGE handles neighbor reflection)
+export const poissonNeumannFrag = `#version 300 es
+precision highp float;
+in vec2 uv;
+out vec4 outColor;
+uniform float resolution;
+uniform sampler2D map_density;
+uniform sampler2D map_iter;
+void main() {
+    float s1 = texture(map_iter, uv + vec2(0.0,  1.0) / resolution).x;
+    float s2 = texture(map_iter, uv + vec2(0.0, -1.0) / resolution).x;
+    float s3 = texture(map_iter, uv + vec2( 1.0, 0.0) / resolution).x;
+    float s4 = texture(map_iter, uv + vec2(-1.0, 0.0) / resolution).x;
+    float invResSq = 1.0 / (resolution * resolution);
+    outColor.r = (s1 + s2 + s3 + s4 + texture(map_density, uv).x * invResSq) * 0.25;
+    outColor.a = 1.0;
+}
+`;
+
 export const gradientFrag = `#version 300 es
 precision highp float;
 in vec2 uv;
