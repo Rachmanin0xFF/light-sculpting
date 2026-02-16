@@ -1,6 +1,10 @@
 'use strict';
 
-import { createFBO, destroyFBO, fullscreenPass } from './gl.js';
+import {
+    createFBO,
+    destroyFBO,
+    fullscreenPass
+} from './gl.js';
 
 /**
  * Multigrid Poisson solver using Jacobi relaxation on a hierarchy of grid resolutions.
@@ -62,17 +66,25 @@ export class PoissonSolver {
             let sourceB = level.b;
             // On first iteration, seed from a different level's texture if provided
             if (j === 0 && seedTexture) {
-                sourceB = { texture: seedTexture };
+                sourceB = {
+                    texture: seedTexture
+                };
             }
 
-            fullscreenPass(this.gl, shader,
-                { map_density: inputFBO.texture, map_iter: sourceB.texture },
-                { resolution: level.resolution },
+            fullscreenPass(this.gl, shader, {
+                    map_density: inputFBO.texture,
+                    map_iter: sourceB.texture
+                }, {
+                    resolution: level.resolution
+                },
                 level.a
             );
-            fullscreenPass(this.gl, shader,
-                { map_density: inputFBO.texture, map_iter: level.a.texture },
-                { resolution: level.resolution },
+            fullscreenPass(this.gl, shader, {
+                    map_density: inputFBO.texture,
+                    map_iter: level.a.texture
+                }, {
+                    resolution: level.resolution
+                },
                 level.b
             );
         }
@@ -126,7 +138,9 @@ export class PoissonSolver {
      * Run multiple V-cycles for high-accuracy solves (e.g. heightmap recovery).
      * Each cycle does down(1) → up(1) → down(fineIter), without clearing between cycles.
      */
-    solveMultiVCycle(inputFBO, outputFBO, maxRes, cycles = 8, fineIter = 80, { neumann = false } = {}) {
+    solveMultiVCycle(inputFBO, outputFBO, maxRes, cycles = 8, fineIter = 80, {
+        neumann = false
+    } = {}) {
         const maxIdx = this.levelIndexForResolution(maxRes);
         const prog = neumann ? this.poissonNeumannProg : null;
         this.clearAll();
@@ -175,9 +189,9 @@ export class PoissonSolver {
      */
     copyToOutput(levelIdx, outputFBO) {
         const src = this.levels[levelIdx].b;
-        fullscreenPass(this.gl, this.copyProg,
-            { map: src.texture },
-            {},
+        fullscreenPass(this.gl, this.copyProg, {
+                map: src.texture
+            }, {},
             outputFBO
         );
     }

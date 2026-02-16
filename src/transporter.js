@@ -1,10 +1,13 @@
 'use strict';
 
 import {
-    createFBO, destroyFBO,
+    createFBO,
+    destroyFBO,
     createMSAAFBO,
-    createGridVAO, destroyGridVAO,
-    fullscreenPass, gridPass
+    createGridVAO,
+    destroyGridVAO,
+    fullscreenPass,
+    gridPass
 } from './gl.js';
 
 /**
@@ -76,9 +79,9 @@ export class TransportLevel {
      * Linear filtering on the source texture handles interpolation.
      */
     initFromPrevious(prevDisplacementTexture) {
-        fullscreenPass(this.gl, this.programs.copy,
-            { map: prevDisplacementTexture },
-            {},
+        fullscreenPass(this.gl, this.programs.copy, {
+                map: prevDisplacementTexture
+            }, {},
             this.displacements
         );
     }
@@ -107,31 +110,38 @@ export class TransportLevel {
         const progs = this.programs;
 
         // --- 1. Compute densities from displacement field ---
-        fullscreenPass(gl, progs.density,
-            { displacements: this.displacements.texture },
-            { resolution: res },
+        fullscreenPass(gl, progs.density, {
+                displacements: this.displacements.texture
+            }, {
+                resolution: res
+            },
             this.densities
         );
 
         // --- 2. Render caustics (displaced mesh + additive blending) ---
-        gridPass(gl, progs.transport,
-            {
+        gridPass(gl, progs.transport, {
                 displacements: this.displacements.texture,
                 densities: this.densities.texture,
                 source: sourceTexture,
+            }, {
+                resolution: res
             },
-            { resolution: res },
-            this.lightmap,  // MSAA FBO
-            this.grid,
-            { clear: true, blendAdditive: true }
+            this.lightmap, // MSAA FBO
+            this.grid, {
+                clear: true,
+                blendAdditive: true
+            }
         );
         // Resolve MSAA → readable texture
         this.lightmap.resolve();
 
         // --- 3. Error: target - current lightmap ---
-        fullscreenPass(gl, progs.subtract,
-            { A: targetTexture, B: this.lightmap.texture },
-            { targetScale },
+        fullscreenPass(gl, progs.subtract, {
+                A: targetTexture,
+                B: this.lightmap.texture
+            }, {
+                targetScale
+            },
             this.difference
         );
 
@@ -139,28 +149,32 @@ export class TransportLevel {
         this.poissonSolver.solve(this.difference, this.poissonResult, res);
 
         // --- 5. Gradient of Poisson solution ---
-        fullscreenPass(gl, progs.gradient,
-            { map: this.poissonResult.texture },
-            { resolution: res },
+        fullscreenPass(gl, progs.gradient, {
+                map: this.poissonResult.texture
+            }, {
+                resolution: res
+            },
             this.gradient
         );
 
         // --- 6. Calculate flow vectors (semi-Lagrangian advection) ---
         // UV remapping from displacement-texel space is done inside the fragment shader
-        fullscreenPass(gl, progs.calculateFlow,
-            {
+        fullscreenPass(gl, progs.calculateFlow, {
                 map_delta: this.gradient.texture,
                 uv_tex: this.displacements.texture,
+            }, {
+                resolution: res
             },
-            { resolution: res },
             this.flow
         );
 
         // --- 7. Helmholtz decomposition: remove curl from flow ---
         // 7a. Divergence of flow field
-        fullscreenPass(gl, progs.divergence,
-            { map: this.flow.texture },
-            { resolution: res },
+        fullscreenPass(gl, progs.divergence, {
+                map: this.flow.texture
+            }, {
+                resolution: res
+            },
             this.divergence
         );
 
@@ -168,24 +182,30 @@ export class TransportLevel {
         this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res, 8, 80);
 
         // 7c. Gradient of solution = curl-free component
-        fullscreenPass(gl, progs.gradient,
-            { map: this.heightmap.texture },
-            { resolution: res },
+        fullscreenPass(gl, progs.gradient, {
+                map: this.heightmap.texture
+            }, {
+                resolution: res
+            },
             this.tempA
         );
 
         // --- 8. Update displacements ---
         // Copy current displacements to tempB
-        fullscreenPass(gl, progs.copy,
-            { map: this.displacements.texture },
-            {},
+        fullscreenPass(gl, progs.copy, {
+                map: this.displacements.texture
+            }, {},
             this.tempB
         );
 
         // new_disp = old_disp + stepSize * curl_free_flow
-        fullscreenPass(gl, progs.addMult,
-            { A: this.tempB.texture, B: this.tempA.texture },
-            { stepSize: stepSize, resolution: res },
+        fullscreenPass(gl, progs.addMult, {
+                A: this.tempB.texture,
+                B: this.tempA.texture
+            }, {
+                stepSize: stepSize,
+                resolution: res
+            },
             this.displacements
         );
     }
@@ -198,12 +218,16 @@ export class TransportLevel {
         const gl = this.gl;
         const res = this.resolution;
 
-        fullscreenPass(gl, this.programs.divergence,
-            { map: this.displacements.texture },
-            { resolution: res },
+        fullscreenPass(gl, this.programs.divergence, {
+                map: this.displacements.texture
+            }, {
+                resolution: res
+            },
             this.divergence
         );
-        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res, 8, 80, { neumann: true });
+        this.poissonSolver.solveMultiVCycle(this.divergence, this.heightmap, res, 8, 80, {
+            neumann: true
+        });
 
         return this.heightmap;
     }

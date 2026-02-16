@@ -1,17 +1,28 @@
 'use strict';
 
-import { initGL, fullscreenPass, uploadTexture } from './gl.js';
-import { CausticSolver } from './cascade.js';
-import { readHeightmap, downloadHeightmapPNG, downloadHeightmapOBJ, downloadHeightmapRaw } from './export.js';
+import {
+    initGL,
+    fullscreenPass,
+    uploadTexture
+} from './gl.js';
+import {
+    CausticSolver
+} from './cascade.js';
+import {
+    readHeightmap,
+    downloadHeightmapPNG,
+    downloadHeightmapOBJ,
+    downloadHeightmapRaw
+} from './export.js';
 
 // =============== State =============== //
 
 let gl = null;
 let solver = null;
 let targetTexture = null;
-let targetMultiplier = null;     // This gets passed to the shaders to scale the target brightness!
+let targetMultiplier = null; // This gets passed to the shaders to scale the target brightness!
 const destImageExposure = 0.85; // If this is smaller than 1, the solver will have more light to push around than it actually needs.
-let sourceTexture = null;  // A white texture by default, but could be set to a spotlight or something.
+let sourceTexture = null; // A white texture by default, but could be set to a spotlight or something.
 let result = null;
 
 // =============== DOM =============== //
@@ -85,7 +96,10 @@ function prepareImage(img, targetSize) {
     ctx.putImageData(imageData, 0, 0);
 
     const meanBrightness = sum / numPixels / 255.0; // 0-1 range
-    return { canvas: c, meanBrightness };
+    return {
+        canvas: c,
+        meanBrightness
+    };
 }
 
 function loadImage(file) {
@@ -128,7 +142,14 @@ async function runSolve() {
         result = await solver.solve(targetTexture, sourceTexture, {
             targetScale: targetMultiplier,
             transportGain,
-            onProgress({ level, resolution, iteration, totalIterations, totalLevels, transportLevel }) {
+            onProgress({
+                level,
+                resolution,
+                iteration,
+                totalIterations,
+                totalLevels,
+                transportLevel
+            }) {
                 const levelProgress = iteration / totalIterations;
                 const overallProgress = (level + levelProgress) / totalLevels;
                 progressFill.style.width = `${overallProgress * 100}%`;
@@ -173,33 +194,39 @@ function renderPreview(transportLevel) {
 
     // Top-left: lightmap
     gl.viewport(0, ph, pw, ph);
-    fullscreenPass(gl, solver.programs.display,
-        { map: transportLevel.lightmap.texture },
-        { gain: 1.0 / targetMultiplier },
+    fullscreenPass(gl, solver.programs.display, {
+            map: transportLevel.lightmap.texture
+        }, {
+            gain: 1.0 / targetMultiplier
+        },
         null
     );
 
     // Top-right: displacement field (sine fringe visualization)
     gl.viewport(pw, ph, pw, ph);
-    fullscreenPass(gl, solver.programs.displacementViz,
-        { map: transportLevel.displacements.texture },
-        {},
+    fullscreenPass(gl, solver.programs.displacementViz, {
+            map: transportLevel.displacements.texture
+        }, {},
         null
     );
 
     // Bottom-left: difference (target - lightmap), red=positive, blue=negative
     gl.viewport(0, 0, pw, ph);
-    fullscreenPass(gl, solver.programs.diffViz,
-        { map: transportLevel.difference.texture },
-        { gain: 1.5 },
+    fullscreenPass(gl, solver.programs.diffViz, {
+            map: transportLevel.difference.texture
+        }, {
+            gain: 1.5
+        },
         null
     );
 
     // Bottom-right: Poisson solution of difference, red=positive, blue=negative
     gl.viewport(pw, 0, pw, ph);
-    fullscreenPass(gl, solver.programs.diffViz,
-        { map: transportLevel.poissonResult.texture },
-        { gain: 10.5 },
+    fullscreenPass(gl, solver.programs.diffViz, {
+            map: transportLevel.poissonResult.texture
+        }, {
+            gain: 10.5
+        },
         null
     );
 }
@@ -213,7 +240,10 @@ fileInput.addEventListener('change', async (e) => {
     try {
         const img = await loadImage(file);
         const targetRes = parseInt(resolutionSelect.value);
-        const { canvas: prepared, meanBrightness } = prepareImage(img, targetRes);
+        const {
+            canvas: prepared,
+            meanBrightness
+        } = prepareImage(img, targetRes);
 
         // Show preview
         preview.src = prepared.toDataURL();
@@ -237,7 +267,10 @@ resolutionSelect.addEventListener('change', async () => {
         const file = fileInput.files[0];
         const img = await loadImage(file);
         const targetRes = parseInt(resolutionSelect.value);
-        const { canvas: prepared, meanBrightness } = prepareImage(img, targetRes);
+        const {
+            canvas: prepared,
+            meanBrightness
+        } = prepareImage(img, targetRes);
 
         preview.src = prepared.toDataURL();
 

@@ -6,7 +6,10 @@
  * Initialize a WebGL2 context with required extensions for float blending.
  */
 export function initGL(canvas) {
-    const gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false });
+    const gl = canvas.getContext('webgl2', {
+        antialias: false,
+        premultipliedAlpha: false
+    });
     if (!gl) throw new Error('WebGL2 not supported');
 
     const extFloat = gl.getExtension('EXT_color_buffer_float');
@@ -55,7 +58,10 @@ export function createProgram(gl, vertSrc, fragSrc) {
         uniforms[info.name] = gl.getUniformLocation(program, info.name);
     }
 
-    return { program, uniforms };
+    return {
+        program,
+        uniforms
+    };
 }
 
 function compileShader(gl, type, source) {
@@ -81,9 +87,21 @@ function addLineNumbers(source) {
  * Format presets mapping short names to WebGL2 internal/format/type combos.
  */
 const FORMAT_PRESETS = {
-    'R32F':    { internalFormat: 0x822E, format: 0x1903, type: 0x1406 }, // gl.R32F, gl.RED, gl.FLOAT
-    'RG32F':   { internalFormat: 0x8230, format: 0x8227, type: 0x1406 }, // gl.RG32F, gl.RG, gl.FLOAT
-    'RGBA32F': { internalFormat: 0x8814, format: 0x1908, type: 0x1406 }, // gl.RGBA32F, gl.RGBA, gl.FLOAT
+    'R32F': {
+        internalFormat: 0x822E,
+        format: 0x1903,
+        type: 0x1406
+    }, // gl.R32F, gl.RED, gl.FLOAT
+    'RG32F': {
+        internalFormat: 0x8230,
+        format: 0x8227,
+        type: 0x1406
+    }, // gl.RG32F, gl.RG, gl.FLOAT
+    'RGBA32F': {
+        internalFormat: 0x8814,
+        format: 0x1908,
+        type: 0x1406
+    }, // gl.RGBA32F, gl.RGBA, gl.FLOAT
 };
 
 /**
@@ -115,7 +133,12 @@ export function createFBO(gl, width, height, preset = 'RGBA32F', filter = gl.LIN
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
 
-    return { framebuffer, texture, width, height };
+    return {
+        framebuffer,
+        texture,
+        width,
+        height
+    };
 }
 
 /**
@@ -246,7 +269,12 @@ export function createGridVAO(gl, resolution) {
     gl.bindVertexArray(null);
 
     const indexCount = indices.length;
-    return { vao, posBuf, idxBuf, indexCount };
+    return {
+        vao,
+        posBuf,
+        idxBuf,
+        indexCount
+    };
 }
 
 /**
@@ -317,7 +345,10 @@ export function fullscreenPass(gl, prog, textures, values, target) {
  * clear: if true, clears the target to black first.
  * blendAdditive: if true, enables additive blending for the draw.
  */
-export function gridPass(gl, prog, textures, values, target, gridVAO, { clear = true, blendAdditive = false } = {}) {
+export function gridPass(gl, prog, textures, values, target, gridVAO, {
+    clear = true,
+    blendAdditive = false
+} = {}) {
     gl.useProgram(prog.program);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
